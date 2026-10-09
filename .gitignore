@@ -1,0 +1,13 @@
+.DS_Store
+.codegraph/
+node_modules/
+target/
+dist/
+build/
+.env*
+!.env.example
+*.key
+*.keystore
+*.jks
+*.p12
+*.pem
