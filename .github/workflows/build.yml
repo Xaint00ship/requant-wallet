@@ -85,6 +85,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: { toolchain: "1.99.0", targets: aarch64-linux-android }
       - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
       - run: |
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
           echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
@@ -94,6 +95,9 @@ jobs:
         env:
           ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Validate Android Gradle configuration
+        working-directory: src-tauri/gen/android
+        run: ./gradlew tasks --all
       - run: npm run tauri -- android build --ci --apk --target aarch64
       - name: Verify APK signatures
         run: |

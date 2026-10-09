@@ -22,13 +22,15 @@ writeFileSync(
 );
 if (!source.includes("buildTypes {"))
   throw new Error("Unexpected Android Gradle template.");
-source = "import java.io.FileInputStream\nimport java.util.Properties\n" + source;
+source =
+  "import java.io.FileInputStream as WalletSigningInputStream\nimport java.util.Properties as WalletSigningProperties\n" +
+  source;
 source = source.replace(
   "buildTypes {",
   `signingConfigs {
         create("release") {
-            val props = Properties()
-            props.load(FileInputStream(rootProject.file("keystore.properties")))
+            val props = WalletSigningProperties()
+            props.load(WalletSigningInputStream(rootProject.file("keystore.properties")))
             keyAlias = props["keyAlias"] as String
             keyPassword = props["password"] as String
             storeFile = file(props["storeFile"] as String)
