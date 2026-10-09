@@ -21,8 +21,18 @@ Requirements: Node.js 24, Rust 1.99.0 and the Tauri 2 platform prerequisites. Ve
 npm ci
 npm run check
 cargo test --locked -p requant-wallet-core
+cargo test --locked -p requant-wallet-app --lib
 npm run tauri -- dev
 ```
+
+For isolated GUI development, create an unfunded test profile:
+
+```sh
+cargo run -p requant-wallet-core --example seed_dev_wallet -- "$PWD/.wallet-test/native"
+REQUANT_WALLET_DEV_DATA="$PWD/.wallet-test/native" npm run tauri -- dev
+```
+
+Its deliberately public development password is `test-only-no-funds-password`; never fund this wallet. The override is available only in debug builds. Use the separate `network.requant.wallet.qa` identifier if running QA beside the normal app. Desktop launches use one instance per app identifier to prevent competing wallet storage writes.
 
 A browser opened with `npm run dev` displays the interface preview. Wallet operations require the native app. Keys are generated, decrypted and signed in Rust. The browser interface does not create wallets or store passwords.
 

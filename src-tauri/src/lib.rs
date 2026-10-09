@@ -297,7 +297,11 @@ async fn confirm_transfer(
     };
     let response = node.rpc("sendtx", json!([raw.clone()])).await;
     let accepted = response.as_ref().ok().and_then(Value::as_str) == Some(txid.as_str())
-        || node.rpc("gettx", json!([txid.clone()])).await.is_ok();
+        || node
+            .rpc("gettx", json!([txid.clone()]))
+            .await
+            .ok()
+            .is_some_and(|tx| tx["hex"].as_str() == Some(raw.as_str()));
     let rejected = response
         .as_ref()
         .err()
@@ -340,7 +344,16 @@ fn share_address(app: tauri::AppHandle, state: RuntimeState, id: String) -> Resu
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+    }));
+    builder
         .plugin(tauri_plugin_wallet_share::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -348,6 +361,17 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let directory = app.path().app_data_dir()?;
+            #[cfg(debug_assertions)]
+            let directory = std::env::var_os("REQUANT_WALLET_DEV_DATA")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| {
+                    if app.config().identifier == "network.requant.wallet.qa" {
+                        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                            .join("../.wallet-test/native")
+                    } else {
+                        directory
+                    }
+                });
             let store = Store::open(directory).map_err(std::io::Error::other)?;
             app.manage(Mutex::new(Runtime {
                 store,
@@ -377,3 +401,6 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("Requant Wallet could not start")
 }
+
+#[cfg(test)]
+mod tests;
