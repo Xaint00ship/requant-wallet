@@ -1,25 +1,68 @@
 # Requant Wallet
 
-Private application repository owned by Xaint00ship. Planned targets: Windows, macOS, Linux and Android, with a shared wallet core and visual identity.
+Private Requant testnet application for Windows, macOS, Linux and Android. English interface with the approved light Requant identity. iOS is outside this milestone.
 
-Current phase: design concepts. The application has not been implemented or released. iOS is outside this milestone.
+## First implementation / 0.1.0
 
-## Design concepts
+- Create separate single-key wallets with a local password; import and export compatible encrypted key files.
+- Argon2id + XChaCha20-Poly1305 encryption, local Ed25519 signing and automatic/manual locking.
+- Confirmed, pending and maturing RQT balances; recent 100 transactions and transaction details.
+- Full receiving address, deterministic QR, clipboard, explorer links and Android system share.
+- Confirmed-output selection, eight-decimal integer amounts, recipient/network validation, full transfer review, password confirmation and durable broadcast status.
+- Testnet network/genesis checks and source transaction hash/value/owner verification before signing.
 
-- [Desktop overview](design/desktop-overview.png): balance, activity, receiving address, network status and lock action.
-- [Android core flows](design/android-core-flows.png): overview, send and receive.
-- [Wallet setup and review](design/wallet-setup-and-review.png): creation, encrypted backup and final transfer review.
-- [Design specification](design/SPEC.md): visual system, navigation, flows and states.
-- [Image-generation prompts](design/prompts.json): exact prompts, inputs and provenance, generated with the built-in image_gen.imagegen tool.
+No recovery phrase, HD/multi-key wallet, mainnet, hardware-wallet, camera scanner or fiat/exchange integration is implemented. Backups use the reference encrypted key-file format. Keep both the backup and its password. Changing the password requires a fresh backup.
 
-The concepts use the approved light Requant identity. All UI copy is English. Amounts, addresses, QR images and network status in the mockups are illustrative. They are not connected to a live wallet or the public explorer. The specification governs exact amounts and address validation during implementation.
+## Development
 
-## Reference implementation
+Requirements: Node.js 24, Rust 1.99.0 and the Tauri 2 platform prerequisites. Versioned npm/Cargo lockfiles pin dependencies. Use a dedicated test wallet with no funds when developing.
 
-Wallet capabilities were inspected in danifest751/requant at commit `aad4772`:
+```sh
+npm ci
+npm run check
+cargo test --locked -p requant-wallet-core
+npm run tauri -- dev
+```
 
-- `crates/wallet/src/main.rs`: key generation, address, balances, history, transaction details and sending through a node.
-- `crates/wallet/src/lib.rs`: Ed25519 transfer signing and passphrase-encrypted key files using Argon2id and XChaCha20-Poly1305.
-- `crates/consensus/src/address.rs`: network-specific bech32m addresses.
+A browser opened with `npm run dev` displays the interface preview. Wallet operations require the native app. Keys are generated, decrypted and signed in Rust. The browser interface does not create wallets or store passwords.
 
-The initial restore design uses an encrypted key file and its wallet password, matching the current reference implementation. Multi-key wallets, mnemonic recovery and hardware wallets require separate implementation decisions.
+```sh
+npm run tauri -- build --ci --bundles app,dmg          # macOS
+npm run tauri -- build --ci --bundles nsis             # Windows
+npm run tauri -- build --ci --bundles appimage,deb     # Linux
+npm run tauri -- android init --ci
+node scripts/prepare-android.mjs
+npm run tauri -- android build --ci --apk --target aarch64
+```
+
+Android requires Java 21, SDK 36, NDK 28.2, aarch64-linux-android and the signing environment described below. The preparation script applies release signing, Requant icons, disables OS cloud backup of wallet data and prohibits cleartext network traffic.
+
+## Private builds and signing
+
+`.github/workflows/build.yml` checks the wallet core/gateway and builds Windows x64 NSIS, universal macOS DMG, Linux x64 AppImage/Debian and Android ARM64 APK. Artifacts remain in this private repository for 30 days. A successful installer build does not establish device/runtime testing on that platform.
+
+Android signing uses repository secrets `ANDROID_KEY_BASE64` and `ANDROID_KEY_PASSWORD`; the fixed alias is `requant-wallet`. Keep an offline copy of this key and password outside Git. Android updates must use the same signing key.
+
+The current desktop beta has no commercial Windows certificate or Apple Developer notarization. macOS uses an ad-hoc signature. This is a testnet build, not a store release or an audited wallet. Testnet coins have no value.
+
+## Node connection and trust
+
+Default: `https://requant.network/wallet-api/v1/rpc`. HTTPS is required for remote nodes. Desktop HTTP is limited to loopback for a local development node. Android release networking requires HTTPS.
+
+`gateway/` is a small isolated server component for getinfo, genesis getblock, utxos, history, gettx and signed sendtx. It limits request/response size, concurrency and per-IP rates, and keeps node RPC authentication on the server. It never accepts wallet passwords or private keys. See [gateway setup](gateway/README.md).
+
+This is a node-backed wallet. Balances, history, chain membership, confirmation/maturity and unspent status depend on the selected node. Genesis and source-byte checks do not independently verify chain proof of work or the current UTXO set. Signing is local; only public addresses and signed transaction bytes go to the selected endpoint. There is no analytics or crash upload.
+
+A transfer review lasts two minutes. Confirmation refreshes selected inputs, checks the endpoint and verifies parent bytes again. The signed transaction ID/bytes are saved before broadcast. An interrupted response is shown as unknown; check that ID in the explorer before creating another transfer. The saved transaction contains signatures and public data, not private key material.
+
+## Source and design provenance
+
+Consensus/address/transaction rules are vendored unchanged from `danifest751/requant@aad4772`; provenance and Apache-2.0 license are in `vendor/`. Encryption matches its wallet v1 format. The approved Requant mark is SVG, not an image-generated approximation.
+
+- [Desktop concept](design/desktop-overview.png)
+- [Android concept](design/android-core-flows.png)
+- [Setup and review concept](design/wallet-setup-and-review.png)
+- [Design specification](design/SPEC.md)
+- [Exact image-generation prompts](design/prompts.json)
+
+The design images contain illustrative data. The application loads actual node responses and shows empty/offline states rather than fabricated funds.

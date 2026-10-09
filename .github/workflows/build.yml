@@ -1,0 +1,101 @@
+name: Testnet wallet builds
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wallet-build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { toolchain: "1.99.0" }
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm run check
+      - run: cargo test --locked -p requant-wallet-core
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {
+              os: windows-latest,
+              target: x86_64-pc-windows-msvc,
+              bundles: nsis,
+              artifact: windows-x64,
+            }
+          - {
+              os: macos-latest,
+              target: universal-apple-darwin,
+              bundles: "app,dmg",
+              artifact: macos-universal,
+            }
+          - {
+              os: ubuntu-24.04,
+              target: x86_64-unknown-linux-gnu,
+              bundles: "appimage,deb",
+              artifact: linux-x64,
+            }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { toolchain: "1.99.0" }
+      - if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm run tauri -- build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        env:
+          APPLE_SIGNING_IDENTITY: "-"
+          NO_STRIP: "true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: requant-wallet-${{ matrix.artifact }}
+          path: |
+            target/**/bundle/nsis/*.exe
+            target/**/bundle/dmg/*.dmg
+            target/**/bundle/appimage/*.AppImage
+            target/**/bundle/deb/*.deb
+          if-no-files-found: error
+          retention-days: 30
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: android-actions/setup-android@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with: { toolchain: "1.99.0", targets: aarch64-linux-android }
+      - uses: Swatinem/rust-cache@v2
+      - run: |
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run tauri -- android init --ci --skip-targets-install
+      - run: node scripts/prepare-android.mjs
+        env:
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - run: npm run tauri -- android build --ci --apk --target aarch64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: requant-wallet-android-arm64
+          path: src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
+          if-no-files-found: error
+          retention-days: 30

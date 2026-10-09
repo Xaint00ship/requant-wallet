@@ -11,3 +11,10 @@ build/
 *.jks
 *.p12
 *.pem
+
+.build-tools/
+.wallet-test/
+src-tauri/gen/
+*.tsbuildinfo
+*.properties
+!gradle-wrapper.properties
