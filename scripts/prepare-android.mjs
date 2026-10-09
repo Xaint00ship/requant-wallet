@@ -22,12 +22,12 @@ writeFileSync(
 );
 if (!source.includes("buildTypes {"))
   throw new Error("Unexpected Android Gradle template.");
-source = "import java.io.FileInputStream\n" + source;
+source = "import java.io.FileInputStream\nimport java.util.Properties\n" + source;
 source = source.replace(
   "buildTypes {",
   `signingConfigs {
         create("release") {
-            val props = java.util.Properties()
+            val props = Properties()
             props.load(FileInputStream(rootProject.file("keystore.properties")))
             keyAlias = props["keyAlias"] as String
             keyPassword = props["password"] as String

@@ -1,8 +1,9 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { open as openFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { readBackup } from "./backups.mjs";
 export const native = isTauri();
 export const android = /Android/i.test(navigator.userAgent);
 export let fileDialogOpen = false;
@@ -31,13 +32,16 @@ export async function pickBackup() {
       multiple: false,
       directory: false,
       title: "Restore Requant wallet",
-      filters: [{ name: "Requant key backup", extensions: ["key", "txt"] }],
+      filters: [
+        {
+          name: "Requant key backup",
+          extensions: android ? ["*/*"] : ["key", "txt"],
+        },
+      ],
     }),
   );
   if (!path || Array.isArray(path)) return null;
-  const data = await readTextFile(path);
-  if (data.length > 4096) throw new Error("The backup file is too large.");
-  return data;
+  return readBackup(await openFile(path, { read: true }));
 }
 export async function saveBackup(id: string, password: string) {
   const data = await command<string>("export_backup", { id, password });
@@ -45,11 +49,16 @@ export async function saveBackup(id: string, password: string) {
     save({
       title: "Save encrypted wallet backup",
       defaultPath: "requant-wallet.key",
-      filters: [{ name: "Requant key backup", extensions: ["key"] }],
+      filters: [
+        {
+          name: "Requant key backup",
+          extensions: android ? ["application/octet-stream"] : ["key"],
+        },
+      ],
     }),
   );
   if (!path) return false;
-  await writeTextFile(path, data + "\n");
+  await writeTextFile(path, data + "\n", { mode: 0o600 });
   await command("confirm_backup", { id, password });
   return true;
 }

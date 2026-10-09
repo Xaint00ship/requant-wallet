@@ -95,6 +95,15 @@ jobs:
           ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       - run: npm run tauri -- android build --ci --apk --target aarch64
+      - name: Verify APK signatures
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r -d '' apk; do
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
+            found=$((found + 1))
+          done < <(find src-tauri/gen/android/app/build/outputs/apk -path '*/release/*.apk' -print0)
+          test "$found" -gt 0
       - uses: actions/upload-artifact@v4
         with:
           name: requant-wallet-android-arm64

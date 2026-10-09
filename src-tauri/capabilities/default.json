@@ -7,12 +7,17 @@
     "core:default",
     "dialog:allow-open",
     "dialog:allow-save",
-    "fs:allow-read-text-file",
+    "fs:allow-open",
+    "fs:allow-read",
     "fs:allow-write-text-file",
     "clipboard-manager:allow-write-text",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://requant.network/explorer/*" }]
+      "allow": [
+        {
+          "url": "https://requant.network/explorer/*"
+        }
+      ]
     }
   ]
 }
