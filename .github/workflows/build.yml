@@ -95,9 +95,6 @@ jobs:
         env:
           ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      - name: Validate Android Gradle configuration
-        working-directory: src-tauri/gen/android
-        run: ./gradlew tasks --all
       - run: npm run tauri -- android build --ci --apk --target aarch64
       - name: Verify APK signatures
         run: |
