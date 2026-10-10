@@ -1,6 +1,6 @@
 use requant_consensus::{
     params::Network,
-    tx::{Htlc, Input, OutPoint, Output, Tx, Unlock},
+    tx::{Delayed, Htlc, HtlcRevocable, Input, OutPoint, Output, Tx, Unlock},
 };
 use requant_wallet_core::{network::Node, transfer::Coin};
 use serde_json::{json, Value};
@@ -150,6 +150,70 @@ async fn verifies_coins_whose_source_spent_a_condition_or_time_lock() {
         spendable: true,
         coinbase: false,
         height: Some(1500),
+    };
+    let (node, worker) = fixture(vec![("gettx", json!({"hex":hex::encode(source.encode())}))]);
+    node.verify_outputs(&[coin], &hex::encode(owner))
+        .await
+        .unwrap();
+    worker.join().unwrap();
+}
+/// Coins created by transfers that use the templates of Requant node 0.16.0 (revocable outputs, revocable
+/// HTLCs, anyone-can-pay) must verify too: the pinned consensus decodes their source.
+#[tokio::test]
+async fn verifies_coins_whose_source_spent_a_revocable_output_with_anyone_can_pay() {
+    let owner = [7; 32];
+    let delayed = Delayed {
+        owner: [2; 32],
+        revoke: [3; 32],
+        delay: 144,
+    };
+    let h = HtlcRevocable {
+        hash: [1; 32],
+        claim: [2; 32],
+        refund: [3; 32],
+        revoke: [4; 32],
+        timeout: 5000,
+        claim_delay: 6,
+        refund_delay: 6,
+    };
+    let source = Tx::Transfer {
+        inputs: vec![
+            Input {
+                after_blocks: 144,
+                unlock: Unlock::DelayedOwner { d: delayed },
+                anyone_can_pay: true,
+                ..Input::new(OutPoint {
+                    txid: [9; 32],
+                    vout: 0,
+                })
+            },
+            Input {
+                after_blocks: 6,
+                unlock: Unlock::RevocableClaim {
+                    h,
+                    preimage: [5; 32],
+                },
+                ..Input::new(OutPoint {
+                    txid: [9; 32],
+                    vout: 1,
+                })
+            },
+        ],
+        outputs: vec![Output {
+            value: 123_456_789,
+            pkh: owner,
+        }],
+    };
+    assert!(source.uses_contracts());
+    assert_eq!(source.encode()[4], 2, "a kind-2 transfer");
+    let coin = Coin {
+        txid: hex::encode(source.txid()),
+        vout: 0,
+        value: 123_456_789,
+        confirmed: true,
+        spendable: true,
+        coinbase: false,
+        height: Some(4800),
     };
     let (node, worker) = fixture(vec![("gettx", json!({"hex":hex::encode(source.encode())}))]);
     node.verify_outputs(&[coin], &hex::encode(owner))
