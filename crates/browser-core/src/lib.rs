@@ -1,3 +1,4 @@
+mod conditions;
 use ed25519_dalek::SigningKey;
 use requant_consensus::{
     address::{address, parse_address},
@@ -256,6 +257,12 @@ pub fn execute(op: &str, input: &str) -> Result<String> {
     }
     let v: Value = serde_json::from_str(input).map_err(|_| "Invalid local wallet request.")?;
     let net = Network::test();
+    if matches!(
+        op,
+        "condition" | "secret" | "pubkey" | "contractPrepare" | "contractInspect" | "contractSign"
+    ) {
+        return conditions::execute(op, &v).map(|v| v.to_string());
+    }
     let out = match op {
         "create" | "restorePhrase" => {
             let p = password(&v, "password")?;
@@ -613,7 +620,7 @@ pub fn execute(op: &str, input: &str) -> Result<String> {
                 unreachable!()
             };
             if v["parents"].is_null() {
-                return Ok(json!({"hex":hex::encode(tx.encode()),"txid":hex::encode(tx.txid()),"inputs":inputs.iter().map(|i|hex::encode(i.prev.txid)).collect::<Vec<_>>()} ).to_string());
+                return Ok(json!({"hex":hex::encode(tx.encode()),"txid":hex::encode(tx.txid()),"inputs":inputs.iter().map(|i|hex::encode(i.prev.txid)).collect::<Vec<_>>(),"locks":conditions::locks(&tx)?,"details":inputs.iter().map(|i|Ok(json!({"txid":hex::encode(i.prev.txid),"vout":i.prev.vout,"owner":hex::encode(i.owner().map_err(|_| "Invalid input condition.")?),"afterHeight":i.after_height.to_string(),"afterBlocks":i.after_blocks}))).collect::<Result<Vec<_>>>()?} ).to_string());
             }
             let mut prev = Vec::new();
             let mut seen = HashSet::new();
@@ -631,7 +638,7 @@ pub fn execute(op: &str, input: &str) -> Result<String> {
                         .get(i.prev.vout as usize)
                         .ok_or("Missing source output.")?
                         .pkh
-                        != requant_consensus::tx::pkh(&i.pubkey)
+                        != i.owner().map_err(|_| "Invalid input condition.")?
                 {
                     return Err("Signed input does not match its source output.".into());
                 }
@@ -646,7 +653,8 @@ pub fn execute(op: &str, input: &str) -> Result<String> {
                 paths: vec![],
                 change: vec![],
             };
-            let review = payment_review(&u)?;
+            let mut review = payment_review(&u)?;
+            review["locks"] = conditions::locks(&u.tx)?;
             json!({"hex":hex::encode(u.tx.encode()),"txid":hex::encode(u.tx.txid()),"review":review})
         }
         _ => return Err("Unsupported local wallet operation.".into()),

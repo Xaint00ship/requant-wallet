@@ -2,9 +2,9 @@
 
 Private Requant testnet application for Windows, macOS, Linux and Android. English interface with the approved light Requant identity. iOS is outside this milestone.
 
-## Wallet 0.3.0
+## Wallet 0.4.0
 
-One interface and Requant wallet 0.4.1 portable core across web, Windows, macOS, Linux, Android and the browser extension's full wallet workspace.
+One interface and Requant wallet 0.5.0 portable core across web, Windows, macOS, Linux, Android and the browser extension's full wallet workspace.
 
 - Create and restore a 24-word HD wallet, encrypted backups, watch-only imports and legacy encrypted/plain key imports (plain keys are encrypted before storage).
 - Receive/change addresses, recovery scanning, address counts from 1 to 100,000, paged address lists and deposit-list exports.
@@ -71,7 +71,7 @@ A transfer review lasts two minutes. Confirmation refreshes selected inputs, che
 
 ## Source and design provenance
 
-Consensus/address/transaction rules are pinned to Requant `444da68`, with the portable wallet 0.4.1 library from `a1e89b9`; provenance and Apache-2.0 license are in `vendor/`. Encryption matches its wallet v1 format. The approved Requant mark is SVG, not an image-generated approximation.
+Consensus/address/transaction rules are pinned to Requant `ef789d4`, with the portable wallet 0.5.0 library from `ef789d4`; provenance and Apache-2.0 license are in `vendor/`. Encryption matches its wallet v1 format. The approved Requant mark is SVG, not an image-generated approximation.
 
 - [Desktop concept](design/desktop-overview.png)
 - [Android concept](design/android-core-flows.png)
@@ -80,3 +80,5 @@ Consensus/address/transaction rules are pinned to Requant `444da68`, with the po
 - [Exact image-generation prompts](design/prompts.json)
 
 The design images contain illustrative data. The application loads actual node responses and shows empty/offline states rather than fabricated funds.
+
+Spending conditions: local 2-of-2, HTLC, delayed revocation and revocable HTLC builders; secret/hash and public-key tools; verified-parent offline payment files, CLI-compatible partial signatures and cosigning. Reviews show activation heights, absolute/relative locks, anyone-can-pay and secret disclosure. Revocable conditions and anyone-can-pay activate at testnet height 4700. Swaps and payment channels remain future applications of these primitives.

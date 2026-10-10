@@ -28,6 +28,7 @@ import {
   ScanLine,
 } from "lucide-react";
 import QRCode from "qrcode";
+import Conditions from "./Conditions";
 import * as api from "./service";
 import { rqt, short } from "../../src/amounts.mjs";
 import { platform, site } from "./platform";
@@ -40,6 +41,7 @@ type View =
   | "coins"
   | "activity"
   | "offline"
+  | "conditions"
   | "settings";
 type Modal =
   | "newAddress"
@@ -57,6 +59,7 @@ const nav: { id: View; name: string; icon: typeof Wallet }[] = [
   { id: "coins", name: "Coins", icon: Layers },
   { id: "activity", name: "Activity", icon: Activity },
   { id: "offline", name: "Offline signing", icon: ShieldCheck },
+  { id: "conditions", name: "Conditions", icon: ShieldCheck },
 ];
 const titles: Record<View, [string, string]> = {
   wallet: ["Your wallet", "A clear view of your Requant testnet wallet."],
@@ -71,6 +74,10 @@ const titles: Record<View, [string, string]> = {
   offline: [
     "Offline signing",
     "Prepare online. Sign offline. Broadcast online.",
+  ],
+  conditions: [
+    "Spending conditions",
+    "Create conditions. Review payments. Sign and cosign locally.",
   ],
   settings: [
     "Wallet settings",
@@ -140,6 +147,22 @@ function ReviewRows({
 }) {
   return (
     <>
+      {review.locks && (
+        <div className="notice">
+          <strong>Spending conditions</strong>
+          <br />
+          Activation: block {review.locks.activationHeight} · Absolute lock:{" "}
+          {review.locks.afterHeight} · Relative lock: {review.locks.afterBlocks}{" "}
+          blocks
+          <br />
+          {review.locks.anyoneCanPay
+            ? "Anyone-can-pay permits additional inputs. "
+            : ""}
+          {review.locks.revealsSecret
+            ? "This transaction reveals the HTLC secret."
+            : ""}
+        </div>
+      )}
       <div className="review-outputs">
         {review.outputs.map((o, i) => (
           <div key={i} className="review-output">
@@ -219,7 +242,8 @@ export default function App() {
     } | null>(null);
   const [copied, setCopied] = useState(""),
     [updates, setUpdates] = useState(0);
-  const [toolsOpen, setToolsOpen] = useState(false),
+  const [lockTick, setLockTick] = useState(0),
+    [toolsOpen, setToolsOpen] = useState(false),
     [transaction, setTransaction] = useState<any>(null);
   const [addressCount, setAddressCount] = useState("1"),
     [knownCount, setKnownCount] = useState("1"),
@@ -245,6 +269,7 @@ export default function App() {
   };
   const clear = () => {
     epoch.current++;
+    setLockTick((v) => v + 1);
     api.lock();
     setPassword("");
     setConfirm("");
@@ -269,6 +294,7 @@ export default function App() {
     !!offlineReview ||
     view === "send" ||
     view === "offline" ||
+    view === "conditions" ||
     !!password ||
     !!source;
   const walletUpdate = useWebUpdates(
@@ -1769,6 +1795,19 @@ export default function App() {
                 )}
               </>
             )}
+            {view === "conditions" && (
+              <Conditions
+                wallet={current}
+                reset={lockTick}
+                busy={!!busy}
+                node={node}
+                task={task}
+                fund={(address) => {
+                  setPayments([{ address, amount: "" }]);
+                  goto("send");
+                }}
+              />
+            )}
             {view === "offline" && (
               <>
                 <div className="offline-steps">
@@ -2106,6 +2145,7 @@ export default function App() {
               { id: "addresses", name: "Addresses & deposit lists" },
               { id: "coins", name: "Coins & consolidation" },
               { id: "offline", name: "Offline signing" },
+              { id: "conditions", name: "Spending conditions" },
             ].map((item) => (
               <button
                 className="setting-row"

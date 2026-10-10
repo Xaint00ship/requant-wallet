@@ -317,7 +317,7 @@ export default function App() {
   function footer() {
     return (
       <footer>
-        <span>Requant Wallet · v0.3.0</span>
+        <span>Requant Wallet · v0.4.0</span>
         <span>Testnet coins have no value.</span>
       </footer>
     );

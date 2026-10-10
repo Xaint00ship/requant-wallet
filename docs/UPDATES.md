@@ -1,6 +1,6 @@
 # Wallet updates
 
-Version 0.3.0 bootstraps updates. Earlier desktop/Android/ZIP builds must be replaced once; they have no updater to receive this release.
+Version 0.4.0 bootstraps updates. Earlier desktop/Android/ZIP builds must be replaced once; they have no updater to receive this release.
 
 - Web checks on startup, return to the tab and every 15 minutes. A new bundle is cached in the background. Activation waits until every open wallet tab reports that no payment, recovery, backup or offline-signing flow is active. It refreshes after 60 seconds idle or an explicit Update wallet action. Closing all wallet tabs also activates the next version normally. Local encrypted wallets and the signed-transaction outbox remain intact.
 - Windows, macOS and Linux AppImage check hourly and on return to the app, download in the background, verify the pinned signature and signed version, and install when all wallets are locked and idle. Install update applies it sooner after locking. macOS/Windows may show their native permission dialog.
@@ -18,6 +18,6 @@ node scripts/prepare-update-release.mjs --input=/absolute/artifacts --output=/ab
 
 The private updater key is outside Git and remains local. CI does not receive it. Keep a secure backup; changing it breaks the installed updater trust chain. The public verification key is in `src-tauri/tauri.conf.json`; version binding is required. Never embed GitHub credentials in clients or make the repositories public for updates.
 
-Upload the immutable release artifacts to `/downloads/wallet/v0.3.0-testnet/` (substitute the actual version), then publish `desktop.json`, `android.json` and `extension.json` atomically under `/updates/wallet/`. Update feeds must use `Cache-Control: no-store`, JSON content type and HTTPS. Do not serve them with immutable installer caching. Verify public artifact hashes and signatures before switching the feeds. Failed/incomplete builds must never replace a live feed.
+Upload the immutable release artifacts to `/downloads/wallet/v0.4.0-testnet/` (substitute the actual version), then publish `desktop.json`, `android.json` and `extension.json` atomically under `/updates/wallet/`. Update feeds must use `Cache-Control: no-store`, JSON content type and HTTPS. Do not serve them with immutable installer caching. Verify public artifact hashes and signatures before switching the feeds. Failed/incomplete builds must never replace a live feed.
 
 Deploy the matching web bundle without removing the downloads or updates directories. Keep its `sw.js`, `version.json` and HTML uncached at the HTTP layer. The worker caches only its fixed public asset list, with a complete revision kept together; RPC responses, encrypted backups and user keys are excluded. Never reuse a version path for different artifacts. Keep the app-data identifier and encrypted storage formats unchanged.

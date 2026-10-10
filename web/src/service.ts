@@ -41,6 +41,17 @@ export type Review = {
   fee: string;
   total: string;
   inputCount: number;
+  kind?: string;
+  path?: string;
+  second?: string;
+  bytes?: number;
+  locks?: {
+    activationHeight: number;
+    afterHeight: string;
+    afterBlocks: number;
+    anyoneCanPay: boolean;
+    revealsSecret: boolean;
+  };
 };
 export type Plan = {
   unsigned: string;
@@ -485,6 +496,11 @@ export function outbox(): any[] {
   }
 }
 export async function broadcast(signed: { hex: string; txid: string }) {
+  const validated = await core("signed", { hex: signed.hex });
+  if (validated.txid !== signed.txid)
+    throw new Error("Signed transaction ID mismatch.");
+  if (validated.locks.activationHeight > 0)
+    await checkConditionBroadcast(signed.hex);
   let list = outbox().filter((x) => x.txid !== signed.txid);
   list.unshift({ ...signed, status: "Broadcast pending", created: Date.now() });
   await storage.write(OUTBOX, JSON.stringify(list.slice(0, 20)));
@@ -517,4 +533,96 @@ export async function importSigned(hex: string) {
     hex,
     parents,
   });
+}
+
+async function conditionParents(ids: string[]) {
+  ids = [...new Set(ids)];
+  const parents: Record<string, string> = {};
+  for (let start = 0; start < ids.length; start += 100) {
+    const batch = await rpc("gettxbatch", [
+      [...new Set(ids)].slice(start, start + 100),
+    ]);
+    for (const item of batch.result) parents[item.txid] = item.raw;
+  }
+  return parents;
+}
+export async function prepareCondition(
+  args: Record<string, unknown>,
+  owner: string,
+) {
+  const node = await info();
+  const coins = [{ owner, raw: (await rpc("utxos", [owner])).raw }];
+  const first = await core("contractPrepare", { ...args, coins });
+  const parents = await conditionParents(first.inputs.map((i: any) => i.txid));
+  if ((await info()).tip !== node.tip)
+    throw new Error("The chain changed. Prepare a fresh condition payment.");
+  return core<{ payment: string; review: Review }>("contractPrepare", {
+    ...args,
+    coins,
+    parents,
+  });
+}
+export async function inspectCondition(payment: string, online = true) {
+  const first = await core("contractInspect", { payment });
+  if (!first.inputs)
+    return first as { payment: string; review: Review; partial: boolean };
+  if (!online)
+    throw new Error(
+      "This CLI partial file needs verified parent transactions. Load it online before moving to the offline signer.",
+    );
+  await info();
+  return core<{ payment: string; review: Review; partial: boolean }>(
+    "contractInspect",
+    { payment, parents: await conditionParents(first.inputs) },
+  );
+}
+export async function conditionPublicKey(
+  id: string,
+  address: string,
+  password: string,
+) {
+  return core<{ address: string; pubkey: string }>("pubkey", {
+    file: wallet(id).file,
+    address,
+    password,
+  });
+}
+export async function signCondition(
+  id: string,
+  payment: string,
+  password: string,
+) {
+  return core<{
+    hex?: string;
+    txid?: string;
+    partial?: string;
+    review: Review;
+  }>("contractSign", { file: wallet(id).file, payment, password });
+}
+export async function checkConditionBroadcast(hex: string) {
+  const tx = await core("signed", { hex });
+  const node = await info();
+  const next = BigInt(node.height) + 1n;
+  if (next < BigInt(tx.locks.activationHeight))
+    throw new Error(
+      `This transaction activates at testnet block ${tx.locks.activationHeight}. Current height: ${node.height}.`,
+    );
+  for (const i of tx.details) {
+    const response = await rpc("utxos", [i.owner]);
+    const coin = response.result.find(
+      (c: any) => c.txid === i.txid && String(c.vout) === String(i.vout),
+    );
+    if (!coin || !coin.confirmed || !coin.spendable)
+      throw new Error(
+        "A source output is spent, unconfirmed or immature. Prepare a fresh payment.",
+      );
+    if (
+      next < BigInt(i.afterHeight) ||
+      next < BigInt(coin.height) + BigInt(i.afterBlocks)
+    )
+      throw new Error(
+        "This payment is still time locked. Keep the signed file and broadcast after its locks expire.",
+      );
+  }
+  return importSigned(hex);
 }
