@@ -1,3 +1,5 @@
+import * as storage from "./storage";
+import { platform } from "./platform";
 import { rqt } from "../../src/amounts.mjs";
 export type Address = {
   address: string;
@@ -71,6 +73,7 @@ const pending = new Map<
 >();
 export function lock() {
   generation++;
+  platform()?.lock();
   worker?.terminate();
   worker = undefined;
   for (const p of pending.values()) p.reject(new Error("Wallet locked."));
@@ -82,6 +85,13 @@ export async function core<T = any>(
 ): Promise<T> {
   if (typeof args.password === "string" && document.hidden)
     throw new Error("Signing session locked. Keep the wallet page active.");
+  const adapter = platform();
+  if (adapter?.core) {
+    const start = generation;
+    const result = await adapter.core(op, args);
+    if (start !== generation) throw new Error("Wallet locked. Try again.");
+    return result;
+  }
   if (!worker) {
     worker = new Worker(new URL("./core.worker.ts", import.meta.url), {
       type: "module",
@@ -104,7 +114,7 @@ export async function core<T = any>(
 }
 function db(): LocalWallet[] {
   try {
-    const value = JSON.parse(localStorage.getItem(STORAGE) || "[]");
+    const value = JSON.parse(storage.read(STORAGE));
     if (!Array.isArray(value) || value.length > 20) throw Error();
     return value;
   } catch {
@@ -113,8 +123,8 @@ function db(): LocalWallet[] {
     );
   }
 }
-function persist(wallets: LocalWallet[]) {
-  localStorage.setItem(STORAGE, JSON.stringify(wallets));
+async function persist(wallets: LocalWallet[]) {
+  await storage.write(STORAGE, JSON.stringify(wallets));
 }
 export function list(): PublicWallet[] {
   return db().map(({ file, ...safe }) => safe);
@@ -124,18 +134,20 @@ export function wallet(id: string): LocalWallet {
   if (!w) throw new Error("Select a wallet first.");
   return w;
 }
-export function update(id: string, patch: Partial<LocalWallet>) {
+export async function update(id: string, patch: Partial<LocalWallet>) {
   const all = db();
   const w = all.find((w) => w.id === id);
   if (!w) throw new Error("Wallet no longer exists.");
   Object.assign(w, patch);
-  persist(all);
+  await persist(all);
 }
 export async function add(
   mode: "create" | "phrase" | "file",
   name: string,
   password: string,
   source = "",
+  count = 1,
+  plain = false,
 ) {
   if (!name.trim() || name.length > 40)
     throw new Error("Use a wallet name between 1 and 40 characters.");
@@ -147,10 +159,12 @@ export async function add(
       ? "create"
       : mode === "phrase"
         ? "restorePhrase"
-        : "import",
+        : plain
+          ? "importPlain"
+          : "import",
     mode === "file"
       ? { file: source, password }
-      : { password, ...(mode === "phrase" ? { phrase: source } : {}) },
+      : { password, count, ...(mode === "phrase" ? { phrase: source } : {}) },
   );
   if (all.some((w) => w.meta.address === result.meta.address))
     throw new Error("This wallet is already saved in this browser.");
@@ -159,13 +173,18 @@ export async function add(
     name: name.trim(),
     file: result.file,
     meta: result.meta,
-    backedUp: mode !== "create",
+    backedUp: mode !== "create" && !plain,
     scanIncomplete: mode === "phrase",
   };
-  persist([...all, w]);
+  await persist([...all, w]);
   return { ...w, phrase: result.phrase };
 }
-export function download(text: string, name: string) {
+export async function download(text: string, name: string) {
+  if (platform()) {
+    if (!(await platform()!.download(text, name)))
+      throw new Error("File export canceled.");
+    return;
+  }
   const url = URL.createObjectURL(
     new Blob([text + "\n"], { type: "application/octet-stream" }),
   );
@@ -177,22 +196,22 @@ export function download(text: string, name: string) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-export async function readFile(file: File, max = 2 * 1024 * 1024) {
+export async function readFile(file: File, max = 32 * 1024 * 1024) {
   if (file.size > max) throw new Error("The selected file is too large.");
   return file.text();
 }
-export function backup(id: string) {
+export async function backup(id: string) {
   const w = wallet(id);
   const parsed = JSON.parse(w.file);
-  download(
+  await download(
     w.meta.legacy ? parsed.encrypted : w.file,
     w.meta.legacy ? "requant-wallet.key" : "requant-wallet.json",
   );
-  update(id, { backedUp: true });
+  await update(id, { backedUp: true });
 }
 export async function watchCopy(id: string) {
   const out = await core("watch", { file: wallet(id).file });
-  download(out.file, "requant-watch-only.json");
+  await download(out.file, "requant-watch-only.json");
 }
 async function mapLimit<T, R>(
   items: T[],
@@ -214,6 +233,10 @@ async function mapLimit<T, R>(
 export async function rpc(method: string, params: unknown[] = []) {
   await rpcSlot();
   try {
+    if (platform()?.rpc) {
+      const raw = await platform()!.rpc!(method, params);
+      return { raw, result: await core("rpc", { raw }) };
+    }
     let r: Response;
     try {
       r = await fetch("/wallet-api/v1/rpc", {
@@ -268,13 +291,42 @@ export async function info() {
 export async function snapshot(id: string): Promise<Snapshot> {
   const w = wallet(id),
     before = await info();
-  const batches = await mapLimit(w.meta.addresses, async (a) => {
-    const [coins, history] = await Promise.all([
-      rpc("utxos", [a.owner]),
-      rpc("history", [a.owner, 100]),
-    ]);
-    return { owner: a.owner, coins, history };
-  });
+  const groups: Address[][] = [];
+  for (let i = 0; i < w.meta.addresses.length; i += 200)
+    groups.push(w.meta.addresses.slice(i, i + 200));
+  const batches = (
+    await mapLimit(
+      groups,
+      async (group) => {
+        const owners = group.map((a) => a.owner);
+        const [coins, history] = await Promise.all([
+          rpc("utxos", [owners]),
+          rpc("history", [owners, 200]),
+        ]);
+        if (!Array.isArray(coins.result) || !Array.isArray(history.result))
+          throw new Error("Invalid batch wallet response.");
+        return owners.map((owner) => {
+          if (
+            [...coins.result, ...history.result].some(
+              (r: any) => !owners.includes(r.owner),
+            )
+          )
+            throw new Error("Node returned an unknown address.");
+          const c = coins.result.filter((r: any) => r.owner === owner),
+            h = history.result.filter((r: any) => r.owner === owner);
+          return {
+            owner,
+            coins: {
+              result: c,
+              raw: JSON.stringify({ result: c, error: null }),
+            },
+            history: { result: h },
+          };
+        });
+      },
+      2,
+    )
+  ).flat();
   const after = await info();
   if (before.tip !== after.tip)
     throw new Error("The chain changed during refresh. Refresh again.");
@@ -343,9 +395,9 @@ export async function scan(
       );
     for (const owner of s.used) used.add(owner);
     const out = await core("scan", { file: w.file, password, used: [...used] });
-    update(id, { file: out.file, meta: out.meta, scanIncomplete: true });
+    await update(id, { file: out.file, meta: out.meta, scanIncomplete: true });
     if (out.meta.addresses.length === w.meta.addresses.length) {
-      update(id, { scanIncomplete: false });
+      await update(id, { scanIncomplete: false });
       return s;
     }
     await new Promise((resolve) => setTimeout(resolve, 60000));
@@ -390,7 +442,7 @@ export async function prepare(
     mode,
     recipient: payments[0]?.address,
   });
-  update(id, {
+  await update(id, {
     file: result.file,
     meta: await core("metadata", { file: result.file }),
   });
@@ -427,7 +479,7 @@ export async function fresh(plan: Plan) {
 const OUTBOX = "requant.web.outbox.v1";
 export function outbox(): any[] {
   try {
-    return JSON.parse(localStorage.getItem(OUTBOX) || "[]");
+    return JSON.parse(storage.read(OUTBOX));
   } catch {
     return [];
   }
@@ -435,18 +487,18 @@ export function outbox(): any[] {
 export async function broadcast(signed: { hex: string; txid: string }) {
   let list = outbox().filter((x) => x.txid !== signed.txid);
   list.unshift({ ...signed, status: "Broadcast pending", created: Date.now() });
-  localStorage.setItem(OUTBOX, JSON.stringify(list.slice(0, 20)));
+  await storage.write(OUTBOX, JSON.stringify(list.slice(0, 20)));
   try {
     await info();
     const r = await rpc("sendtx", [signed.hex]);
     if (r.result !== signed.txid)
       throw new Error("Transaction response mismatch.");
     list[0].status = "Pending";
-    localStorage.setItem(OUTBOX, JSON.stringify(list.slice(0, 20)));
+    await storage.write(OUTBOX, JSON.stringify(list.slice(0, 20)));
     return signed.txid;
   } catch {
     list[0].status = "Broadcast status unknown";
-    localStorage.setItem(OUTBOX, JSON.stringify(list.slice(0, 20)));
+    await storage.write(OUTBOX, JSON.stringify(list.slice(0, 20)));
     throw new Error(
       "Broadcast status is unknown. Check the transaction ID in the explorer before retrying.",
     );

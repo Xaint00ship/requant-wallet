@@ -30,6 +30,7 @@ import {
 import QRCode from "qrcode";
 import * as api from "./service";
 import { rqt, short } from "../../src/amounts.mjs";
+import { platform, site } from "./platform";
 import { useWebUpdates } from "./updates";
 type View =
   | "wallet"
@@ -47,6 +48,7 @@ type Modal =
   | "scan"
   | "signOffline"
   | "broadcast"
+  | "transaction"
   | null;
 const nav: { id: View; name: string; icon: typeof Wallet }[] = [
   { id: "wallet", name: "Wallet", icon: Wallet },
@@ -217,6 +219,24 @@ export default function App() {
     } | null>(null);
   const [copied, setCopied] = useState(""),
     [updates, setUpdates] = useState(0);
+  const [toolsOpen, setToolsOpen] = useState(false),
+    [transaction, setTransaction] = useState<any>(null);
+  const [addressCount, setAddressCount] = useState("1"),
+    [knownCount, setKnownCount] = useState("1"),
+    [addressPage, setAddressPage] = useState(0);
+  const [legacyPlain, setLegacyPlain] = useState(false);
+  const [endpoint, setEndpoint] = useState(""),
+    [savedEndpoint, setSavedEndpoint] = useState("");
+  useEffect(() => {
+    void platform()
+      ?.settings?.()
+      .then((v) => {
+        setEndpoint(v.endpoint);
+        setSavedEndpoint(v.endpoint);
+      });
+  }, []);
+  const actionRunning = useRef(false);
+  const [syncing, setSyncing] = useState(false);
   const epoch = useRef(0);
   const current = wallets.find((w) => w.id === selected);
   const reload = () => {
@@ -236,18 +256,22 @@ export default function App() {
     setModal(null);
     setNotice("Signing session locked.");
   };
-  const walletUpdate = useWebUpdates(
+  const updateBlocked =
+    toolsOpen ||
+    syncing ||
     !!busy ||
-      !!setup ||
-      !!phrase ||
-      !!modal ||
-      !!plan ||
-      !!signed ||
-      !!offlineReview ||
-      view === "send" ||
-      view === "offline" ||
-      !!password ||
-      !!source,
+    !!setup ||
+    !!phrase ||
+    !!modal ||
+    !!plan ||
+    !!signed ||
+    !!offlineReview ||
+    view === "send" ||
+    view === "offline" ||
+    !!password ||
+    !!source;
+  const walletUpdate = useWebUpdates(
+    updateBlocked,
     clear,
     () => {
       clear();
@@ -262,7 +286,7 @@ export default function App() {
       timer = setTimeout(clear, 5 * 60000);
     };
     const hidden = () => {
-      if (document.hidden) clear();
+      if (document.hidden && !platform()?.fileDialogOpen?.()) clear();
     };
     touch();
     document.addEventListener("pointerdown", touch);
@@ -295,7 +319,7 @@ export default function App() {
     setResult("");
     if (!selected) return;
     let alive = true;
-    setBusy("Synchronizing wallet…");
+    setSyncing(true);
     api
       .snapshot(selected)
       .then((s) => {
@@ -309,7 +333,7 @@ export default function App() {
         if (alive) setError(e.message);
       })
       .finally(() => {
-        if (alive) setBusy("");
+        if (alive) setSyncing(false);
       });
     return () => {
       alive = false;
@@ -333,7 +357,8 @@ export default function App() {
     };
   }, [address]);
   async function task(label: string, fn: () => Promise<void>) {
-    if (busy) return;
+    if (actionRunning.current) return;
+    actionRunning.current = true;
     setError("");
     setNotice("");
     setBusy(label);
@@ -344,6 +369,7 @@ export default function App() {
         e instanceof Error ? e.message : "This action could not be completed.",
       );
     } finally {
+      actionRunning.current = false;
       setBusy("");
     }
   }
@@ -355,9 +381,19 @@ export default function App() {
       reload();
     });
   }
+  async function showTransaction(txid: string) {
+    await task("Loading transaction…", async () => {
+      await api.info();
+      const reply = await api.rpc("gettx", [txid]);
+      const tx = await api.core("transaction", { raw: reply.raw, txid });
+      setTransaction(tx);
+      setModal("transaction");
+    });
+  }
   async function copy(text: string) {
     try {
-      await navigator.clipboard.writeText(text);
+      if (platform()?.copy) await platform()!.copy!(text);
+      else await navigator.clipboard.writeText(text);
       setCopied(text);
       setTimeout(() => setCopied(""), 1800);
     } catch {
@@ -370,12 +406,19 @@ export default function App() {
         ? "Creating your wallet locally…"
         : "Restoring your wallet locally…",
       async () => {
-        if (setup !== "file" && password !== confirm)
+        if ((setup !== "file" || legacyPlain) && password !== confirm)
           throw new Error("The passwords do not match.");
         const entered = password;
         setPassword("");
         setConfirm("");
-        const w = await api.add(setup!, name, entered, source);
+        const w = await api.add(
+          setup!,
+          name,
+          entered,
+          source,
+          Number(knownCount),
+          legacyPlain,
+        );
         setSource("");
         setFileName("");
         reload();
@@ -465,8 +508,9 @@ export default function App() {
         const out = await api.core("nextAddress", {
           file: w.file,
           password: entered,
+          count: Number(addressCount),
         });
-        api.update(selected, { file: out.file, meta: out.meta });
+        await api.update(selected, { file: out.file, meta: out.meta });
         const a = out.meta.addresses
           .filter((a: api.Address) => a.chain === 0 && a.issued)
           .at(-1);
@@ -489,7 +533,7 @@ export default function App() {
           password: entered,
           nextPassword: next,
         });
-        api.update(selected, { file: out.file, backedUp: false });
+        await api.update(selected, { file: out.file, backedUp: false });
         setModal(null);
         reload();
         setNotice("Local password changed. Save a new encrypted backup.");
@@ -514,7 +558,7 @@ export default function App() {
     setPassword("");
     await task("Signing payment locally…", async () => {
       const tx = await api.sign(selected, offline, entered);
-      api.download(tx.hex, "requant-signed-payment.txt");
+      await api.download(tx.hex, "requant-signed-payment.txt");
       setOfflineReview(null);
       setNotice(
         "Signed payment exported. Move it to your online device to broadcast.",
@@ -539,25 +583,40 @@ export default function App() {
     label: string,
     onRead: (text: string, name: string) => void,
     max?: number,
-  ) => (
-    <label className="file-picker">
-      <FileUp size={18} />
-      <span>{label}</span>
-      <input
-        type="file"
-        accept=".json,.key,.txt,application/json,text/plain"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file)
-            api
-              .readFile(file, max)
-              .then((text) => onRead(text, file.name))
-              .catch((e) => setError(e.message));
-          e.target.value = "";
-        }}
-      />
-    </label>
-  );
+  ) =>
+    platform()?.pick ? (
+      <button
+        className="file-picker"
+        disabled={!!busy}
+        onClick={() =>
+          void task("Opening wallet file…", async () => {
+            const file = await platform()!.pick!(max ?? 32 * 1024 * 1024);
+            if (file) onRead(file.text, file.name);
+          })
+        }
+      >
+        <FileUp size={18} />
+        <span>{label}</span>
+      </button>
+    ) : (
+      <label className="file-picker">
+        <FileUp size={18} />
+        <span>{label}</span>
+        <input
+          type="file"
+          accept=".json,.key,.txt,application/json,text/plain"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file)
+              api
+                .readFile(file, max)
+                .then((text) => onRead(text, file.name))
+                .catch((e) => setError(e.message));
+            e.target.value = "";
+          }}
+        />
+      </label>
+    );
   function empty(text: string) {
     return (
       <div className="empty-state">
@@ -576,7 +635,11 @@ export default function App() {
             <a
               key={e.txid}
               className="transaction"
-              href={`/explorer/tx/${e.txid}`}
+              onClick={(event) => {
+                event.preventDefault();
+                void showTransaction(e.txid);
+              }}
+              href={`https://requant.network/explorer/tx/${e.txid}`}
               target="_blank"
               rel="noreferrer"
             >
@@ -617,11 +680,24 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="/">
-          <img src="/wallet/requant-mark.svg" alt="Requant" />
+        <a className="brand" href="https://requant.network/">
+          <img
+            src={platform() ? "./requant-mark.svg" : "/wallet/requant-mark.svg"}
+            alt="Requant"
+          />
           <span>
             <strong>REQUANT</strong>
-            <small>WEB WALLET</small>
+            <small>
+              {platform()?.kind === "extension"
+                ? "BROWSER WALLET"
+                : platform()
+                  ? "WALLET"
+                  : platform()?.kind === "extension"
+                    ? "BROWSER WALLET"
+                    : platform()
+                      ? "WALLET"
+                      : "WEB WALLET"}
+            </small>
           </span>
         </a>
         <div className="wallet-picker">
@@ -692,7 +768,12 @@ export default function App() {
             <Lock size={18} />
             Lock signing session
           </button>
-          <a className="nav-item" href="/docs" target="_blank" rel="noreferrer">
+          <a
+            className="nav-item"
+            href="https://requant.network/docs"
+            target="_blank"
+            rel="noreferrer"
+          >
             <ExternalLink size={18} />
             Help & documentation
           </a>
@@ -707,7 +788,7 @@ export default function App() {
       </aside>
       <main className="main">
         <div className="topbar">
-          <a href="/">
+          <a href="https://requant.network/">
             requant.network <ArrowUpRight size={13} />
           </a>
           <Status>TESTNET</Status>
@@ -720,7 +801,11 @@ export default function App() {
                 ? "GET STARTED"
                 : current?.meta.watchOnly
                   ? "WATCH-ONLY WALLET"
-                  : "WEB WALLET"}
+                  : platform()?.kind === "extension"
+                    ? "BROWSER WALLET"
+                    : platform()
+                      ? "WALLET"
+                      : "WEB WALLET"}
             </div>
             <h1>
               {setup
@@ -731,7 +816,7 @@ export default function App() {
             </h1>
             <p>
               {setup
-                ? "Create or restore a wallet. Keys are encrypted and kept in this browser."
+                ? "Create or restore a wallet. Keys are encrypted and kept on this device."
                 : phrase
                   ? "Write down all 24 words in order and keep them offline."
                   : titles[view][1]}
@@ -748,6 +833,13 @@ export default function App() {
             </button>
           )}
         </header>
+        {platform()?.updates({
+          blocked: updateBlocked,
+          locked: !password && !phrase && !source,
+          clear,
+          installing: (value) => setBusy(value ? "Updating wallet…" : ""),
+          details: view === "settings",
+        })}
         {walletUpdate.waiting && (
           <div className="message" role="status">
             <RefreshCw size={17} />
@@ -876,7 +968,9 @@ export default function App() {
                 <Field
                   label={
                     setup === "file"
-                      ? "Backup password (leave empty for watch-only)"
+                      ? legacyPlain
+                        ? "New local password for the imported key"
+                        : "Backup password (leave empty for watch-only)"
                       : "Local wallet password"
                   }
                 >
@@ -884,13 +978,15 @@ export default function App() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    minLength={setup === "file" ? undefined : 12}
+                    minLength={
+                      setup === "file" && !legacyPlain ? undefined : 12
+                    }
                     maxLength={256}
                     autoComplete="new-password"
-                    required={setup !== "file"}
+                    required={setup !== "file" || legacyPlain}
                   />
                 </Field>
-                {setup !== "file" && (
+                {(setup !== "file" || legacyPlain) && (
                   <Field label="Confirm local password">
                     <input
                       type="password"
@@ -900,6 +996,34 @@ export default function App() {
                       required
                     />
                   </Field>
+                )}
+                {(setup === "create" || setup === "phrase") && (
+                  <Field label="Receive address count · 1 to 100,000">
+                    <input
+                      type="number"
+                      min={1}
+                      max={100000}
+                      value={knownCount}
+                      onChange={(e) => setKnownCount(e.target.value)}
+                      required
+                    />
+                    <small>
+                      For restoration, enter the number of addresses you
+                      previously issued. Gap scanning also checks used receive
+                      and change addresses.
+                    </small>
+                  </Field>
+                )}
+                {setup === "file" && (
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={legacyPlain}
+                      onChange={(e) => setLegacyPlain(e.target.checked)}
+                    />
+                    Import a plain legacy key and encrypt it with this new
+                    password
+                  </label>
                 )}
                 {setup === "phrase" && (
                   <label className="check">
@@ -990,27 +1114,31 @@ export default function App() {
             </label>
             <div className="form-actions">
               <Button
-                onClick={() => {
-                  api.backup(selected);
-                  reload();
-                  setNotice(
-                    "Encrypted backup downloaded. Keep it with your local password.",
-                  );
-                }}
+                onClick={() =>
+                  void task("Saving encrypted backup…", async () => {
+                    await api.backup(selected);
+                    reload();
+                    setNotice(
+                      "Encrypted backup downloaded. Keep it with your local password.",
+                    );
+                  })
+                }
               >
                 <FileDown size={16} />
                 Save encrypted backup
               </Button>
               <Button
                 primary
-                disabled={!backed}
-                onClick={() => {
-                  api.update(selected, { backedUp: true });
-                  setPhrase("");
-                  setReveal(false);
-                  reload();
-                  setView("wallet");
-                }}
+                disabled={!backed || !!busy}
+                onClick={() =>
+                  void task("Saving backup confirmation…", async () => {
+                    await api.update(selected, { backedUp: true });
+                    setPhrase("");
+                    setReveal(false);
+                    reload();
+                    setView("wallet");
+                  })
+                }
               >
                 Continue to wallet
                 <ArrowRight size={16} />
@@ -1024,10 +1152,12 @@ export default function App() {
                 <ShieldCheck size={18} />
                 <span>Back up this wallet before making payments.</span>
                 <Button
-                  onClick={() => {
-                    api.backup(selected);
-                    reload();
-                  }}
+                  onClick={() =>
+                    void task("Saving encrypted backup…", async () => {
+                      await api.backup(selected);
+                      reload();
+                    })
+                  }
                 >
                   Save encrypted backup
                 </Button>
@@ -1127,7 +1257,7 @@ export default function App() {
                     <div className="full-address">{result}</div>
                     <a
                       className="button primary"
-                      href={`/explorer/tx/${result}`}
+                      href={`https://requant.network/explorer/tx/${result}`}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -1151,14 +1281,19 @@ export default function App() {
                         </p>
                         <Button
                           primary
-                          onClick={() => {
-                            api.download(
-                              plan.unsigned,
-                              "requant-unsigned-payment.json",
-                            );
-                            setPlan(null);
-                            setNotice("Unsigned payment exported.");
-                          }}
+                          onClick={() =>
+                            void task(
+                              "Exporting unsigned payment…",
+                              async () => {
+                                await api.download(
+                                  plan.unsigned,
+                                  "requant-unsigned-payment.json",
+                                );
+                                setPlan(null);
+                                setNotice("Unsigned payment exported.");
+                              },
+                            )
+                          }
                         >
                           <FileDown size={16} />
                           Export unsigned payment
@@ -1166,6 +1301,22 @@ export default function App() {
                       </>
                     ) : (
                       <>
+                        {modal === "transaction"
+                          ? "Transaction details"
+                          : modal === "newAddress" && (
+                              <Field label="Number of receive addresses · 1 to 100,000">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={100000}
+                                  value={addressCount}
+                                  onChange={(e) =>
+                                    setAddressCount(e.target.value)
+                                  }
+                                  required
+                                />
+                              </Field>
+                            )}
                         <Field label="Local wallet password">
                           <input
                             type="password"
@@ -1399,7 +1550,7 @@ export default function App() {
                     )}
                     <a
                       className="button"
-                      href={`/explorer/address/${address}`}
+                      href={`https://requant.network/explorer/address/${address}`}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -1407,6 +1558,17 @@ export default function App() {
                       <ArrowUpRight size={16} />
                     </a>
                   </div>
+                  {platform()?.share && (
+                    <Button
+                      onClick={() =>
+                        void task("Sharing public address…", async () => {
+                          await platform()!.share!(address);
+                        })
+                      }
+                    >
+                      Share address
+                    </Button>
+                  )}
                   <p className="subtle">
                     Only send RQT from the Requant testnet. This is not an
                     Ethereum address.
@@ -1430,43 +1592,77 @@ export default function App() {
                   </Button>
                 </div>
                 <div className="address-table">
-                  {issued.map((a) => (
-                    <div key={a.owner} className="address-row">
-                      <span className="address-kind">
-                        {a.chain === 0 ? "Receive" : "Change"} {a.index + 1}
-                      </span>
-                      <button
-                        className="address-link"
-                        onClick={() => {
-                          setReceive(a.address);
-                          goto("receive");
-                        }}
-                      >
-                        {short(a.address, 22, 12)}
-                      </button>
-                      <span>
-                        {rqt(
-                          (
-                            snapshot?.coins.filter(
-                              (c) => c.owner === a.owner,
-                            ) || []
-                          ).reduce((s, c) => s + BigInt(c.value), 0n),
-                        )}{" "}
-                        RQT
-                      </span>
-                      <button
-                        className="icon-button"
-                        aria-label={`Copy ${a.chain === 0 ? "receive" : "change"} address ${a.index + 1}`}
-                        onClick={() => copy(a.address)}
-                      >
-                        {copied === a.address ? (
-                          <Check size={16} />
-                        ) : (
-                          <Copy size={16} />
-                        )}
-                      </button>
-                    </div>
-                  ))}
+                  {issued
+                    .slice(addressPage * 50, addressPage * 50 + 50)
+                    .map((a) => (
+                      <div key={a.owner} className="address-row">
+                        <span className="address-kind">
+                          {a.chain === 0 ? "Receive" : "Change"} {a.index + 1}
+                        </span>
+                        <button
+                          className="address-link"
+                          onClick={() => {
+                            setReceive(a.address);
+                            goto("receive");
+                          }}
+                        >
+                          {short(a.address, 22, 12)}
+                        </button>
+                        <span>
+                          {rqt(
+                            (
+                              snapshot?.coins.filter(
+                                (c) => c.owner === a.owner,
+                              ) || []
+                            ).reduce((s, c) => s + BigInt(c.value), 0n),
+                          )}{" "}
+                          RQT
+                        </span>
+                        <button
+                          className="icon-button"
+                          aria-label={`Copy ${a.chain === 0 ? "receive" : "change"} address ${a.index + 1}`}
+                          onClick={() => copy(a.address)}
+                        >
+                          {copied === a.address ? (
+                            <Check size={16} />
+                          ) : (
+                            <Copy size={16} />
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                </div>
+                <div className="form-actions">
+                  <Button
+                    disabled={!addressPage}
+                    onClick={() => setAddressPage((v) => v - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span>
+                    {issued.length} issued addresses · Page {addressPage + 1}
+                  </span>
+                  <Button
+                    disabled={(addressPage + 1) * 50 >= issued.length}
+                    onClick={() => setAddressPage((v) => v + 1)}
+                  >
+                    Next
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      void task("Exporting receive addresses…", async () => {
+                        await api.download(
+                          issued
+                            .filter((a) => a.chain === 0)
+                            .map((a) => a.address)
+                            .join("\n"),
+                          "requant-deposit-addresses.txt",
+                        );
+                      })
+                    }
+                  >
+                    Export deposit list
+                  </Button>
                 </div>
                 <p className="subtle">
                   The wallet also keeps 20 lookahead addresses on each chain for
@@ -1506,7 +1702,7 @@ export default function App() {
                           <tr key={c.txid + ":" + c.vout}>
                             <td>
                               <a
-                                href={`/explorer/tx/${c.txid}`}
+                                href={`https://requant.network/explorer/tx/${c.txid}`}
                                 target="_blank"
                                 rel="noreferrer"
                               >
@@ -1554,7 +1750,7 @@ export default function App() {
                         <a
                           className="transaction"
                           key={tx.txid}
-                          href={`/explorer/tx/${tx.txid}`}
+                          href={`https://requant.network/explorer/tx/${tx.txid}`}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -1650,6 +1846,18 @@ export default function App() {
                   <section className="panel review-panel">
                     <h2>Review offline payment</h2>
                     <ReviewRows review={offlineReview} />
+                    {modal === "newAddress" && (
+                      <Field label="Number of receive addresses · 1 to 100,000">
+                        <input
+                          type="number"
+                          min={1}
+                          max={100000}
+                          value={addressCount}
+                          onChange={(e) => setAddressCount(e.target.value)}
+                          required
+                        />
+                      </Field>
+                    )}
                     <Field label="Local wallet password">
                       <input
                         type="password"
@@ -1686,11 +1894,13 @@ export default function App() {
                   <h2>Backup & recovery</h2>
                   <button
                     className="setting-row"
-                    onClick={() => {
-                      api.backup(selected);
-                      reload();
-                      setNotice("Encrypted backup downloaded.");
-                    }}
+                    onClick={() =>
+                      void task("Saving encrypted backup…", async () => {
+                        await api.backup(selected);
+                        reload();
+                        setNotice("Encrypted backup saved.");
+                      })
+                    }
                   >
                     <FileDown size={20} />
                     <span>
@@ -1758,7 +1968,9 @@ export default function App() {
                     <Globe size={20} />
                     <div>
                       <strong>Requant testnet</strong>
-                      <span>requant.network/wallet-api</span>
+                      <span>
+                        {savedEndpoint || "requant.network/wallet-api"}
+                      </span>
                       <small>
                         {node
                           ? `Verified genesis · Observed height ${node.height}`
@@ -1766,6 +1978,33 @@ export default function App() {
                       </small>
                     </div>
                   </div>
+                  {platform()?.configure && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void task("Saving node connection…", async () => {
+                          await platform()!.configure!(endpoint);
+                          setSavedEndpoint(endpoint);
+                          setNode(null);
+                          setSnapshot(null);
+                          const verified = await api.info();
+                          setNode(verified);
+                        });
+                      }}
+                    >
+                      <Field label="Public API or own node URL">
+                        <input
+                          type="url"
+                          required
+                          value={endpoint}
+                          onChange={(e) => setEndpoint(e.target.value)}
+                        />
+                      </Field>
+                      <Button type="submit" disabled={!!busy}>
+                        Save & verify node
+                      </Button>
+                    </form>
+                  )}
                   <div className="setting-detail">
                     <ShieldCheck size={20} />
                     <div>
@@ -1782,9 +2021,14 @@ export default function App() {
                   <div className="setting-detail">
                     <Wallet size={20} />
                     <div>
-                      <strong>Saved in this browser</strong>
+                      <strong>
+                        {platform()
+                          ? "Saved on this device"
+                          : "Saved in this browser"}
+                      </strong>
                       <span>
-                        Clearing site data removes local wallet copies.
+                        Keep your encrypted backup before uninstalling or
+                        clearing application data.
                       </span>
                       <small>
                         Keep your offline recovery phrase or encrypted backup
@@ -1811,6 +2055,91 @@ export default function App() {
           <span>TESTNET · COINS HAVE NO VALUE</span>
         </footer>
       </main>
+      <nav className="mobile-navigation" aria-label="Mobile wallet navigation">
+        <button
+          disabled={!current}
+          onClick={() => {
+            setSetup(null);
+            goto("wallet");
+          }}
+        >
+          <Wallet size={20} />
+          Wallet
+        </button>
+        <button
+          disabled={!current}
+          onClick={() => {
+            setSetup(null);
+            goto("activity");
+          }}
+        >
+          <Activity size={20} />
+          Activity
+        </button>
+        <button disabled={!current} onClick={() => setToolsOpen((v) => !v)}>
+          <Layers size={20} />
+          Tools
+        </button>
+        <button
+          disabled={!current}
+          onClick={() => {
+            setSetup(null);
+            goto("settings");
+          }}
+        >
+          <Settings size={20} />
+          Settings
+        </button>
+      </nav>
+      {toolsOpen && (
+        <div className="modal-backdrop">
+          <section className="modal panel">
+            <div className="panel-heading">
+              <h2>Wallet tools</h2>
+              <Button onClick={() => setToolsOpen(false)}>Close</Button>
+            </div>
+            {[
+              { id: "send", name: "Send RQT" },
+              { id: "receive", name: "Receive RQT" },
+              { id: "addresses", name: "Addresses & deposit lists" },
+              { id: "coins", name: "Coins & consolidation" },
+              { id: "offline", name: "Offline signing" },
+            ].map((item) => (
+              <button
+                className="setting-row"
+                key={item.id}
+                onClick={() => {
+                  setSetup(null);
+                  goto(item.id as View);
+                  setToolsOpen(false);
+                }}
+              >
+                {item.name}
+                <ArrowRight size={18} />
+              </button>
+            ))}
+            <button
+              className="setting-row"
+              onClick={() => {
+                clear();
+                setToolsOpen(false);
+              }}
+            >
+              Lock signing session
+              <Lock size={18} />
+            </button>
+            <a
+              className="setting-row"
+              href="https://requant.network/docs"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Help & documentation
+              <ExternalLink size={18} />
+            </a>
+          </section>
+        </div>
+      )}
       {modal && (
         <div className="modal-backdrop">
           <section
@@ -1846,7 +2175,35 @@ export default function App() {
                 <X size={18} />
               </button>
             </div>
-            {modal === "broadcast" ? (
+            {modal === "transaction" ? (
+              <>
+                <div className="full-address">{transaction?.txid}</div>
+                <p>
+                  {transaction?.coinbase ? "Mining reward" : "Payment"} ·{" "}
+                  {transaction?.confirmations ?? "0"} observed confirmations
+                </p>
+                {transaction?.outputs?.map((o: any, i: number) => (
+                  <div className="review-output" key={i}>
+                    <span className="label">Output {i + 1}</span>
+                    <span className="full-address">{o.address}</span>
+                    <Amount value={o.amount} />
+                  </div>
+                ))}
+                <p className="subtle">
+                  Transaction bytes and ID verified locally. Confirmations are
+                  reported by the connected node.
+                </p>
+                <a
+                  className="button"
+                  href={`https://requant.network/explorer/tx/${transaction?.txid}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View in explorer
+                  <ExternalLink size={16} />
+                </a>
+              </>
+            ) : modal === "broadcast" ? (
               <>
                 <p className="subtle">
                   This file contains a signed transaction. Broadcasting sends it
@@ -1895,6 +2252,18 @@ export default function App() {
                   Your password is used only by the local wallet core on this
                   device.
                 </p>
+                {modal === "newAddress" && (
+                  <Field label="Number of receive addresses · 1 to 100,000">
+                    <input
+                      type="number"
+                      min={1}
+                      max={100000}
+                      value={addressCount}
+                      onChange={(e) => setAddressCount(e.target.value)}
+                      required
+                    />
+                  </Field>
+                )}
                 <Field label="Local wallet password">
                   <input
                     type="password"

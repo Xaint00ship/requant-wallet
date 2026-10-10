@@ -29,6 +29,23 @@ fn password(v: &Value, k: &str) -> Result<Zeroizing<String>> {
     }
     Ok(Zeroizing::new(p.to_owned()))
 }
+fn count(v: &Value) -> Result<u32> {
+    match v.get("count") {
+        None => Ok(1),
+        Some(n) => n
+            .as_u64()
+            .filter(|n| *n >= 1 && *n <= 100000)
+            .map(|n| n as u32)
+            .ok_or("Address count must be between 1 and 100,000.".into()),
+    }
+}
+fn number(v: &Value) -> Option<u64> {
+    v.as_u64().or_else(|| {
+        v.as_str()
+            .filter(|s| !s.is_empty() && s.bytes().all(|c| c.is_ascii_digit()))
+            .and_then(|s| s.parse().ok())
+    })
+}
 fn hash(s: &str) -> Result<Hash> {
     hex::decode(s)
         .ok()
@@ -51,7 +68,7 @@ fn cost(text: &str) -> Result<()> {
     Ok(())
 }
 fn hd_file(text: &str) -> Result<WalletFile> {
-    if text.len() > 2 * 1024 * 1024 {
+    if text.len() > 32 * 1024 * 1024 {
         return Err("Wallet backup is too large.".into());
     }
     let v: Value = serde_json::from_str(text).map_err(|_| "Invalid wallet file.")?;
@@ -65,8 +82,8 @@ fn hd_file(text: &str) -> Result<WalletFile> {
     if w.network != "test"
         || w.receive.is_empty()
         || w.receive_issued == 0
-        || w.receive.len() > 10000
-        || w.change.len() > 10000
+        || w.receive.len() > 100020
+        || w.change.len() > 100020
     {
         return Err("Invalid Requant testnet wallet.".into());
     }
@@ -141,12 +158,10 @@ fn coins(v: &Value) -> Result<Vec<Spendable>> {
         let a = rpc(field(batch, "raw")?)?;
         for c in a.as_array().ok_or("Invalid output list.")? {
             let txid = hash(field(c, "txid")?)?;
-            let vout = c["vout"]
-                .as_u64()
+            let vout = number(&c["vout"])
                 .and_then(|x| u32::try_from(x).ok())
                 .ok_or("Invalid output index.")?;
-            let value = c["value"]
-                .as_u64()
+            let value = number(&c["value"])
                 .filter(|x| *x > 0 && *x <= MAX_AMOUNT)
                 .ok_or("Invalid output value.")?;
             if !seen.insert((txid, vout)) {
@@ -218,8 +233,8 @@ fn unsigned(text: &str) -> Result<Unsigned> {
     let u = Unsigned::parse(text)?;
     if u.network != "test"
         || u.paths.len() > 600
-        || u.paths.iter().any(|(c, i)| *c > 1 || *i >= 10000)
-        || u.change.iter().any(|(_, c, i)| *c > 1 || *i >= 10000)
+        || u.paths.iter().any(|(c, i)| *c > 1 || *i >= 100020)
+        || u.change.iter().any(|(_, c, i)| *c > 1 || *i >= 100020)
     {
         return Err("Invalid testnet payment paths.".into());
     }
@@ -236,7 +251,7 @@ fn unsigned(text: &str) -> Result<Unsigned> {
     Ok(u)
 }
 pub fn execute(op: &str, input: &str) -> Result<String> {
-    if input.len() > 16 * 1024 * 1024 {
+    if input.len() > 64 * 1024 * 1024 {
         return Err("Request is too large.".into());
     }
     let v: Value = serde_json::from_str(input).map_err(|_| "Invalid local wallet request.")?;
@@ -249,10 +264,26 @@ pub fn execute(op: &str, input: &str) -> Result<String> {
             } else {
                 hd::entropy_of(field(&v, "phrase")?)?
             };
-            let w = WalletFile::new(&net, &entropy, Some(&p), &random()?, &random()?)?;
+            let n = count(&v)?;
+            let mut w = WalletFile::new(&net, &entropy, Some(&p), &random()?, &random()?)?;
+            w.receive_issued = n;
+            w.top_up(&hd::seed_of(&entropy, ""));
             json!({"file":w.to_text(),"meta":metadata(&w.to_text())?,"phrase":if op=="create"{Some(hd::phrase_of(&entropy).to_string())}else{None}})
         }
         "metadata" => metadata(field(&v, "file")?)?,
+        "importPlain" => {
+            let text = field(&v, "file")?.trim();
+            if text.len() != 64 || !text.bytes().all(|c| c.is_ascii_hexdigit()) {
+                return Err("Plain legacy key must contain exactly 64 hexadecimal digits.".into());
+            }
+            let p = password(&v, "password")?;
+            let key = Zeroizing::new(wallet::decrypt_key(text, None).map_err(str::to_owned)?);
+            let owner = wallet::owner_of(&SigningKey::from_bytes(&key));
+            let encrypted =
+                wallet::encrypt_key(&key, &p, &random()?, &random()?).map_err(str::to_owned)?;
+            let file=json!({"requant_legacy":1,"network":"test","encrypted":encrypted,"owner":hex::encode(owner)}).to_string();
+            json!({"file":file,"meta":metadata(&file)?})
+        }
         "import" => {
             let text = field(&v, "file")?.trim();
             let p = Zeroizing::new(field(&v, "password")?.to_owned());
@@ -318,11 +349,16 @@ pub fn execute(op: &str, input: &str) -> Result<String> {
                 }
                 w.top_up(&seed);
             } else {
-                w.top_up(&seed);
-                w.next_receive().ok_or("No derived receive address.")?;
+                let n = count(&v)?;
+                let next = w
+                    .receive_issued
+                    .checked_add(n)
+                    .filter(|n| *n <= 100000)
+                    .ok_or("This wallet supports up to 100,000 issued receive addresses.")?;
+                w.receive_issued = next;
                 w.top_up(&seed);
             }
-            if w.owners().len() > 20000 {
+            if w.owners().len() > 200040 {
                 return Err("Recovery scan exceeds this wallet's address limit.".into());
             }
             json!({"file":w.to_text(),"meta":metadata(&w.to_text())?})
@@ -330,6 +366,19 @@ pub fn execute(op: &str, input: &str) -> Result<String> {
         "watch" => {
             let w = hd_file(field(&v, "file")?)?;
             json!({"file":w.watch_copy().to_text()})
+        }
+        "transaction" => {
+            let result = rpc(field(&v, "raw")?)?;
+            let bytes =
+                hex::decode(field(&result, "hex")?).map_err(|_| "Invalid transaction bytes.")?;
+            let tx = Tx::decode_exact(&bytes).map_err(|_| "Invalid transaction.")?;
+            tx.check_standalone(&net.chain_id)
+                .map_err(|_| "Invalid transaction signatures.")?;
+            let txid = hex::encode(tx.txid());
+            if txid != field(&v, "txid")? {
+                return Err("Transaction ID mismatch.".into());
+            }
+            json!({"txid":txid,"coinbase":matches!(tx,Tx::Coinbase{..}),"confirmations":strings(result["confirmations"].clone()),"outputs":tx.outputs().iter().map(|o|json!({"address":address(&net,&o.pkh),"amount":wallet::format_amount(o.value)})).collect::<Vec<_>>()})
         }
         "rpc" => strings(rpc(field(&v, "raw")?)?),
         "info" => {

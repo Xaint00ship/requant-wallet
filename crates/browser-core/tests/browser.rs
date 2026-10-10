@@ -145,3 +145,66 @@ fn legacy_encrypted_key_can_pay_without_mnemonic() {
         .check_standalone(&Network::test().chain_id)
         .unwrap();
 }
+
+#[test]
+fn deposit_counts_restore_exact_paths_and_do_not_reissue_addresses() {
+    let phrase = hd::phrase_of(&[0; 32]);
+    let restored = call(
+        "restorePhrase",
+        json!({"phrase":phrase.to_string(),"password":PASS,"count":30}),
+    );
+    let file = WalletFile::parse(restored["file"].as_str().unwrap()).unwrap();
+    assert_eq!(file.receive_issued, 30);
+    assert_eq!(file.receive.len(), 50);
+    let next = call(
+        "nextAddress",
+        json!({"file":restored["file"],"password":PASS,"count":3}),
+    );
+    let changed = WalletFile::parse(next["file"].as_str().unwrap()).unwrap();
+    assert_eq!(changed.receive_issued, 33);
+    assert_eq!(&changed.receive[..30], &file.receive[..30]);
+    for count in [0, 100001] {
+        assert!(execute(
+            "restorePhrase",
+            &json!({"phrase":phrase.to_string(),"password":PASS,"count":count}).to_string()
+        )
+        .is_err());
+    }
+}
+#[test]
+fn plain_legacy_import_encrypts_before_persistence_and_matches_address() {
+    let secret = hex::encode([9; 32]);
+    let imported = call("importPlain", json!({"file":secret,"password":PASS}));
+    let saved = imported["file"].as_str().unwrap();
+    assert!(!saved.contains(&secret));
+    assert!(saved.contains("requant-key:1:argon2id"));
+    let parsed: Value = serde_json::from_str(saved).unwrap();
+    let imported_again = call(
+        "import",
+        json!({"file":parsed["encrypted"],"password":PASS}),
+    );
+    assert_eq!(imported["meta"], imported_again["meta"]);
+}
+#[test]
+fn batch_string_amounts_keep_exact_integer_coin_values() {
+    let (_, mut request) = fixture();
+    request["coins"][0]["raw"] = json!(request["coins"][0]["raw"]
+        .as_str()
+        .unwrap()
+        .replace("\"value\":200000000", "\"value\":\"200000000\"")
+        .replace("\"vout\":0", "\"vout\":\"0\""));
+    let plan = call("plan", request);
+    assert_eq!(plan["review"]["total"], "1.25002104");
+}
+
+#[test]
+fn export_public_unfunded_integration_fixture() {
+    let (file, request) = fixture();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(
+        root.join("full-test-fixture.json"),
+        json!({"file":file,"request":request,"password":PASS}).to_string(),
+    )
+    .unwrap();
+}

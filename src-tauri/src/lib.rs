@@ -14,6 +14,7 @@ use std::{
 use tauri::{Manager, State};
 use tauri_plugin_wallet_share::WalletShareExt;
 use zeroize::Zeroizing;
+mod full_wallet;
 #[derive(Clone)]
 struct Plan {
     wallet: String,
@@ -376,7 +377,9 @@ pub fn run() {
                         directory
                     }
                 });
-            let store = Store::open(directory).map_err(std::io::Error::other)?;
+            let store = Store::open(directory.clone()).map_err(std::io::Error::other)?;
+            let full = full_wallet::FullWalletStore::open(directory).map_err(std::io::Error::other)?;
+            app.manage(Mutex::new(full));
             app.manage(Mutex::new(Runtime {
                 store,
                 plans: Default::default(),
@@ -384,6 +387,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            full_wallet::full_state_load,
+            full_wallet::full_state_save,
+            full_wallet::portable_wallet,
+            full_wallet::full_wallet_rpc,
+            full_wallet::share_full_address,
             list_wallets,
             create_wallet,
             import_wallet,

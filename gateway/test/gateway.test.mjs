@@ -17,7 +17,7 @@ test("gateway permits only bounded wallet operations", () => {
     assert.throws(() => validateRequest({ method, params: [] }));
   assert.throws(() => validateRequest({ method: "sendtx", params: ["zz"] }));
   assert.throws(() =>
-    validateRequest({ method: "history", params: ["a".repeat(64), 101] }),
+    validateRequest({ method: "history", params: ["a".repeat(64), 201] }),
   );
   assert.throws(() => validateRequest({ method: "getblock", params: [1] }));
   assert.throws(() =>
@@ -127,4 +127,25 @@ test("broadcast is rate-limited and secrets are never exposed in node errors", a
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("whole-wallet reads bound and deduplicate address lists", () => {
+  const owners = Array.from({ length: 200 }, (_, i) =>
+    i.toString(16).padStart(64, "0"),
+  );
+  assert.equal(
+    validateRequest({ method: "utxos", params: [owners] }).method,
+    "utxos",
+  );
+  assert.equal(
+    validateRequest({ method: "history", params: [owners, 200] }).method,
+    "history",
+  );
+  for (const values of [
+    [],
+    [owners[0], owners[0]],
+    [...owners, "f".repeat(64)],
+    ["invalid"],
+  ])
+    assert.throws(() => validateRequest({ method: "utxos", params: [values] }));
 });

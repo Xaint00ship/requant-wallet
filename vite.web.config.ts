@@ -14,5 +14,5 @@ export default defineConfig({
     },
     fs: { allow: [".."] },
   },
-  build: { outDir: "../dist-web", emptyOutDir: true, target: "es2022" },
+  build: { outDir: "../dist-web", emptyOutDir: true, target: "esnext" },
 });

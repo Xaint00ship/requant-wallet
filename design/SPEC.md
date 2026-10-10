@@ -8,7 +8,7 @@ Use the approved Signal palette: warm ivory `#f4f1e9`, panel white `#ffffff`, gr
 
 Use the existing angular R mark from `design/assets/requant-mark.svg`. The SVG is authoritative. IBM Plex Sans is self-hosted for headings, body and numerical values (tabular figures); addresses and hashes retain a monospace font. Fine dividers and 6px panel corners match the website, explorer and extension. Decorative layered geometry stays away from functional content. Include the IBM SIL Open Font License with every distribution.
 
-Desktop uses a persistent sidebar. Android uses bottom navigation with Home, Activity and Settings, and back navigation for transfers and receipt. Each platform uses its native title bar, window controls, safe areas, keyboard, file picker and share sheet; the desktop concept deliberately avoids OS-specific controls.
+Desktop uses a persistent sidebar. Android uses bottom navigation with Wallet, Activity, Tools and Settings. Tools exposes all advanced wallet operations. Each platform uses its native title bar, window controls, safe areas, keyboard, file picker and share sheet; the desktop concept deliberately avoids OS-specific controls.
 
 Use a minimum 44px desktop action target and 48dp Android touch target. Keep visible focus states and sufficient text contrast. Main balance typography must adapt to long values without clipping or dropping significant digits. Long addresses can abbreviate in lists, but show the complete address in transaction review and before copying or sharing.
 
@@ -23,7 +23,7 @@ Use a minimum 44px desktop action target and 48dp Android touch target. Keep vis
 | Settings     | Backup, password, auto-lock and node connection  | Backup, password, auto-lock and node connection   |
 | Wallet setup | Create or restore encrypted backup               | Create or restore encrypted backup                |
 
-The desktop and Android wallet represent one key and one native asset, RQT. A visible wallet selector switches between separate saved key files. The web target uses the pinned wallet 0.4 portable core and implements HD addresses, 24-word recovery, watch-only wallets, multiple recipients and offline payment files; see `web/README.md`. The shared identity does not imply identical capabilities across targets.
+All targets use the same full wallet interface and pinned portable Requant wallet 0.4.1 library. The wallet selector supports HD wallets, legacy encrypted key wallets and watch-only files. Every target exposes 24-word creation/restoration, multiple addresses, payment batches, max/consolidation and offline payment files. Native file/share and connection settings use platform adapters.
 
 ## Balance and activity
 
@@ -41,7 +41,7 @@ Restore: choose the encrypted key file with the system file picker, enter its wa
 
 Backup: save the encrypted key file with the platform file/save interface. Both the file and the password are needed to restore access. Keep backup reminders in Settings and on unfinished setup. Never send keys or wallet passwords to the website, administrator dashboard or a node service.
 
-Unlock: show wallet name, password field and local unlock action. Auto-lock and explicit Lock wallet clear signing-key material from active UI state. A password change requires a new compatible encrypted backup. Recovery phrases are supported by the new web target. The current desktop and Android target still uses encrypted key-file recovery.
+Unlock: show wallet name, password field and local unlock action. Auto-lock and explicit Lock wallet clear signing-key material from active UI state. A password change requires a new compatible encrypted backup. Recovery phrases are supported by the new web target. Desktop, Android and the extension also support 24-word recovery.
 
 ## Sending and receiving
 

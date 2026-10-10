@@ -1,3 +1,4 @@
+import { platform } from "./platform";
 import { useEffect, useRef, useState } from "react";
 import { canAutoApply } from "../../src/update-policy.mjs";
 
@@ -29,7 +30,8 @@ export function useWebUpdates(
     }, 5000);
   }
   useEffect(() => {
-    if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
+    if (platform() || !import.meta.env.PROD || !("serviceWorker" in navigator))
+      return;
     let disposed = false;
     const controlled = !!navigator.serviceWorker.controller;
     const touch = () => {

@@ -3,21 +3,21 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/wallet/fonts/ibm-plex-sans-400.ttf") format("truetype");
+  src: url("../../public/fonts/ibm-plex-sans-400.ttf") format("truetype");
 }
 @font-face {
   font-family: "IBM Plex Sans";
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url("/wallet/fonts/ibm-plex-sans-500.ttf") format("truetype");
+  src: url("../../public/fonts/ibm-plex-sans-500.ttf") format("truetype");
 }
 @font-face {
   font-family: "IBM Plex Sans";
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url("/wallet/fonts/ibm-plex-sans-700.ttf") format("truetype");
+  src: url("../../public/fonts/ibm-plex-sans-700.ttf") format("truetype");
 }
 :root {
   font-family: "IBM Plex Sans", sans-serif;
@@ -1372,5 +1372,75 @@ td > a {
 @media (prefers-reduced-motion: reduce) {
   .spin {
     animation: none;
+  }
+}
+
+.address-table {
+  max-height: 540px;
+  overflow: auto;
+}
+.mobile-navigation {
+  display: none;
+}
+.wallet-updates,
+.update-card {
+  padding: 24px;
+  background: white;
+  border: 1px solid var(--border, #e4e4df);
+  border-radius: 6px;
+  margin-bottom: 24px;
+}
+@media (max-width: 700px) {
+  .sidebar {
+    padding: 16px;
+    align-items: center;
+    gap: 16px;
+    min-height: 96px;
+  }
+  .sidebar nav,
+  .sidebar-bottom {
+    display: none;
+  }
+  .sidebar .wallet-picker {
+    margin: 0;
+    width: 170px;
+  }
+  .sidebar .brand {
+    margin: 0;
+  }
+  .sidebar .wallet-picker label {
+    font-size: 11px;
+  }
+  .main {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  .mobile-navigation {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 30;
+    background: #fff;
+    border-top: 1px solid #e4e4df;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    gap: 4px;
+  }
+  .mobile-navigation button {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    font-size: 12px;
+    border: 0;
+    background: transparent;
+    color: #20231f;
+  }
+  .mobile-navigation button:focus-visible {
+    outline: 2px solid #ff5426;
+  }
+  .modal-backdrop {
+    z-index: 50;
   }
 }

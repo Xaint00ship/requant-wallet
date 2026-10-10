@@ -1,9 +1,11 @@
 {
   "repository": "https://github.com/requant-network/requant",
-  "commit": "f6340819e25d98452a8841e5694c5e29c1c15734",
+  "commit": "a1e89b93c99de10788da0e698d14fc18ff1ec356",
   "path": "crates/wallet",
   "adaptations": [
     "Exclude socket-based backend; browser networking uses the constrained wallet gateway.",
-    "Cargo manifest contains only portable library dependencies."
-  ]
+    "Cargo manifest contains only portable library dependencies.",
+    "CLI address-count operations are exposed by the shared local core, bounded to 100,000 receive addresses."
+  ],
+  "walletVersion": "0.4.1"
 }

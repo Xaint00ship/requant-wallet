@@ -2,16 +2,20 @@
 
 Private Requant testnet application for Windows, macOS, Linux and Android. English interface with the approved light Requant identity. iOS is outside this milestone.
 
-## First implementation / 0.1.0
+## Wallet 0.3.0
 
-- Create separate single-key wallets with a local password; import and export compatible encrypted key files.
-- Argon2id + XChaCha20-Poly1305 encryption, local Ed25519 signing and automatic/manual locking.
-- Confirmed, pending and maturing RQT balances; recent 100 transactions and transaction details.
-- Full receiving address, deterministic QR, clipboard, explorer links and Android system share.
-- Confirmed-output selection, eight-decimal integer amounts, recipient/network validation, full transfer review, password confirmation and durable broadcast status.
-- Testnet network/genesis checks and source transaction hash/value/owner verification before signing.
+One interface and Requant wallet 0.4.1 portable core across web, Windows, macOS, Linux, Android and the browser extension's full wallet workspace.
 
-No recovery phrase, HD/multi-key wallet, mainnet, hardware-wallet, camera scanner or fiat/exchange integration is implemented. Backups use the reference encrypted key-file format. Keep both the backup and its password. Changing the password requires a fresh backup.
+- Create and restore a 24-word HD wallet, encrypted backups, watch-only imports and legacy encrypted/plain key imports (plain keys are encrypted before storage).
+- Receive/change addresses, recovery scanning, address counts from 1 to 100,000, paged address lists and deposit-list exports.
+- Verified testnet connection, exact integer balances, pending/maturing funds, history, coins and transaction inspection.
+- Multiple recipients, estimated/custom fee rates, send max, consolidation, source validation, explicit review and local signing.
+- CLI-compatible prepare/sign/broadcast files for offline operation, watch-only preparation and durable signed transaction outbox.
+- Local password changes, native file picking/saving, clipboard, Android sharing, native own-node configuration and signed update delivery.
+
+Existing app key wallets are migrated atomically with their IDs, names, addresses, backup flags and signed outbox preserved. Only encrypted wallet files and public metadata are persisted. Mainnet, hardware wallets, camera scanning, swaps, channels and fiat integrations remain outside implemented upstream wallet functionality.
+
+Web uses IndexedDB with revision checks, native apps use an atomic application-data file, and extension storage is restricted to trusted extension pages. Competing writers must reload instead of silently overwriting another window. Updates are described in [UPDATES.md](docs/UPDATES.md).
 
 ## Development
 
@@ -34,7 +38,7 @@ REQUANT_WALLET_DEV_DATA="$PWD/.wallet-test/native" npm run tauri -- dev
 
 Its deliberately public development password is `test-only-no-funds-password`; never fund this wallet. The override is available only in debug builds. Use the separate `network.requant.wallet.qa` identifier if running QA beside the normal app. Desktop launches use one instance per app identifier to prevent competing wallet storage writes.
 
-A browser opened with `npm run dev` displays the interface preview. Wallet operations require the native app. Keys are generated, decrypted and signed in Rust. The browser interface does not create wallets or store passwords.
+`npm run dev` serves the native interface, which requires the Tauri runtime. `npm run dev:web` serves the independent web target. Native cryptography runs in Rust; web cryptography runs in a disposable WASM worker.
 
 ```sh
 npm run tauri -- build --ci --bundles app,dmg          # macOS
@@ -67,7 +71,7 @@ A transfer review lasts two minutes. Confirmation refreshes selected inputs, che
 
 ## Source and design provenance
 
-Consensus/address/transaction rules are vendored unchanged from `danifest751/requant@aad4772`; provenance and Apache-2.0 license are in `vendor/`. Encryption matches its wallet v1 format. The approved Requant mark is SVG, not an image-generated approximation.
+Consensus/address/transaction rules are pinned to Requant `444da68`, with the portable wallet 0.4.1 library from `a1e89b9`; provenance and Apache-2.0 license are in `vendor/`. Encryption matches its wallet v1 format. The approved Requant mark is SVG, not an image-generated approximation.
 
 - [Desktop concept](design/desktop-overview.png)
 - [Android concept](design/android-core-flows.png)
