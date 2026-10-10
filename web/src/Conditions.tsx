@@ -285,20 +285,21 @@ export default function Conditions({
         <div className="conditions-grid">
           <label className="field">
             <span>Wallet address for public key</span>
-            <select
+            <input
+              list="condition-key-addresses"
               value={keyAddress}
               onChange={(e) => setKeyAddress(e.target.value)}
-            >
+            />
+            <datalist id="condition-key-addresses">
               {wallet.meta.addresses
                 .filter((a) => a.issued)
                 .slice(0, 200)
                 .map((a) => (
-                  <option value={a.address} key={a.owner}>
-                    {a.chain === 0 ? "Receive" : "Change"} {a.index + 1} ·{" "}
-                    {a.address}
+                  <option key={a.owner} value={a.address}>
+                    {a.chain === 0 ? "Receive" : "Change"} {a.index + 1}
                   </option>
                 ))}
-            </select>
+            </datalist>
           </label>
           <label className="field">
             <span>Local wallet password</span>

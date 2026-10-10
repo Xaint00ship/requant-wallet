@@ -872,18 +872,7 @@ export default function App() {
           <div className="message" role="status">
             <RefreshCw size={17} />
             <span>{walletUpdate.status}</span>
-            <Button
-              disabled={
-                !!busy ||
-                !!setup ||
-                !!phrase ||
-                !!modal ||
-                !!plan ||
-                view === "send" ||
-                view === "offline"
-              }
-              onClick={walletUpdate.apply}
-            >
+            <Button disabled={updateBlocked} onClick={walletUpdate.apply}>
               Update wallet
             </Button>
           </div>
@@ -988,7 +977,7 @@ export default function App() {
                       </div>
                     )}
                     <p className="subtle">
-                      Supports Requant 0.4 wallet JSON, watch-only JSON and
+                      Supports Requant 0.4+ wallet JSON, watch-only JSON and
                       encrypted legacy key files.
                     </p>
                   </>
