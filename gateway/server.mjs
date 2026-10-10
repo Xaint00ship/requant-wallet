@@ -3,18 +3,33 @@ export function validateRequest(body) {
   const { method, params } = body || {};
   if (!Array.isArray(params)) throw new Error("Invalid parameters");
   const hash = (v) => typeof v === "string" && /^[a-f0-9]{64}$/.test(v);
+  const owners = (v) =>
+    hash(v) ||
+    (Array.isArray(v) &&
+      v.length >= 1 &&
+      v.length <= 200 &&
+      new Set(v).size === v.length &&
+      v.every(hash));
   const valid =
     (method === "getinfo" && params.length === 0) ||
-    (method === "getblock" && params.length === 1 && params[0] === 0) ||
-    ((method === "gettx" || method === "utxos") &&
+    (method === "estimatefee" &&
       params.length === 1 &&
-      hash(params[0])) ||
+      [1, 3, 10].includes(params[0])) ||
+    (method === "gettxbatch" &&
+      params.length === 1 &&
+      Array.isArray(params[0]) &&
+      params[0].length >= 1 &&
+      params[0].length <= 100 &&
+      params[0].every(hash)) ||
+    (method === "getblock" && params.length === 1 && params[0] === 0) ||
+    (method === "gettx" && params.length === 1 && hash(params[0])) ||
+    (method === "utxos" && params.length === 1 && owners(params[0])) ||
     (method === "history" &&
       params.length === 2 &&
-      hash(params[0]) &&
+      owners(params[0]) &&
       Number.isInteger(params[1]) &&
       params[1] >= 1 &&
-      params[1] <= 100) ||
+      params[1] <= 200) ||
     (method === "sendtx" &&
       params.length === 1 &&
       typeof params[0] === "string" &&
@@ -86,7 +101,7 @@ export function createGateway({
       const bucket = limits.get(key) || { count: 0, until: timestamp + 60000 };
       limits.set(key, bucket);
       bucket.count++;
-      if (bucket.count > (request.method === "sendtx" ? 10 : 240)) {
+      if (bucket.count > (request.method === "sendtx" ? 10 : 1200)) {
         reply(429, "Too many requests. Try again later.");
         return;
       }
@@ -100,6 +115,47 @@ export function createGateway({
       }
       active++;
       try {
+        if (request.method === "gettxbatch") {
+          const ids = [...new Set(request.params[0])];
+          const results = new Array(ids.length);
+          let position = 0,
+            total = 0;
+          const signal = AbortSignal.timeout(10000);
+          await Promise.all(
+            Array.from({ length: Math.min(3, ids.length) }, async () => {
+              while (position < ids.length) {
+                const index = position++;
+                const response = await fetchNode(rpcUrl, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${rpcToken}`,
+                  },
+                  body: JSON.stringify({
+                    method: "gettx",
+                    params: [ids[index]],
+                  }),
+                  signal,
+                });
+                if (!response.ok) throw new Error("Node unavailable");
+                const chunks = [];
+                for await (const chunk of response.body) {
+                  total += chunk.length;
+                  if (total > 2 * 1024 * 1024)
+                    throw new Error("Source transactions too large");
+                  chunks.push(Buffer.from(chunk));
+                }
+                const raw = Buffer.concat(chunks).toString("utf8");
+                const envelope = JSON.parse(raw);
+                if (envelope.error || !Object.hasOwn(envelope, "result"))
+                  throw new Error("Invalid source transaction response");
+                results[index] = { txid: ids[index], raw };
+              }
+            }),
+          );
+          res.end(JSON.stringify({ result: results, error: null }));
+          return;
+        }
         const response = await fetchNode(rpcUrl, {
           method: "POST",
           headers: {

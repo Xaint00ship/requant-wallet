@@ -14,6 +14,7 @@ use std::{
 use tauri::{Manager, State};
 use tauri_plugin_wallet_share::WalletShareExt;
 use zeroize::Zeroizing;
+mod full_wallet;
 #[derive(Clone)]
 struct Plan {
     wallet: String,
@@ -353,6 +354,10 @@ pub fn run() {
             let _ = window.set_focus();
         }
     }));
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init());
     builder
         .plugin(tauri_plugin_wallet_share::init())
         .plugin(tauri_plugin_dialog::init())
@@ -372,7 +377,9 @@ pub fn run() {
                         directory
                     }
                 });
-            let store = Store::open(directory).map_err(std::io::Error::other)?;
+            let store = Store::open(directory.clone()).map_err(std::io::Error::other)?;
+            let full = full_wallet::FullWalletStore::open(directory).map_err(std::io::Error::other)?;
+            app.manage(Mutex::new(full));
             app.manage(Mutex::new(Runtime {
                 store,
                 plans: Default::default(),
@@ -380,6 +387,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            full_wallet::full_state_load,
+            full_wallet::full_state_save,
+            full_wallet::portable_wallet,
+            full_wallet::full_wallet_rpc,
+            full_wallet::share_full_address,
             list_wallets,
             create_wallet,
             import_wallet,
@@ -396,7 +408,11 @@ pub fn run() {
             prepare_transfer,
             confirm_transfer,
             pending_broadcasts,
-            share_address
+            share_address,
+            app_update_info,
+            check_app_update,
+            install_app_update,
+            open_wallet_downloads
         ])
         .run(tauri::generate_context!())
         .expect("Requant Wallet could not start")
@@ -404,3 +420,31 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests;
+
+#[tauri::command]
+fn app_update_info(app: tauri::AppHandle) -> Value {
+    let platform = if cfg!(target_os = "android") { "android" }
+        else if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() { "linux-package" }
+        else { "desktop" };
+    json!({"version": app.package_info().version.to_string(), "platform": platform})
+}
+
+#[tauri::command]
+async fn check_app_update(app: tauri::AppHandle) -> Result<Value> {
+    tauri::async_runtime::spawn_blocking(move || app.wallet_share().check_update())
+        .await.map_err(|_| "Update check failed.".to_string())?
+}
+
+#[tauri::command]
+async fn install_app_update(app: tauri::AppHandle, state: RuntimeState<'_>) -> Result<Value> {
+    { let mut rt = access(&state)?; rt.store.lock_all(); rt.plans.clear(); }
+    tauri::async_runtime::spawn_blocking(move || app.wallet_share().install_update())
+        .await.map_err(|_| "Cannot open the update installer.".to_string())?
+}
+
+#[tauri::command]
+fn open_wallet_downloads(app: tauri::AppHandle) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_url("https://requant.network/docs/wallet#download-wallet", None::<&str>)
+        .map_err(|_| "Cannot open wallet downloads.".into())
+}

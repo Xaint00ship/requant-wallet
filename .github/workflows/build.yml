@@ -59,10 +59,14 @@ jobs:
       - run: npm ci
       - if: runner.os == 'Linux'
         run: cargo test --locked -p requant-wallet-app --lib
-      - run: npm run tauri -- build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      # Keep the updater private key on the release operator's machine. CI produces
+      # packages; scripts/prepare-update-release.mjs signs the reviewed artifacts.
+      - run: npm run tauri -- build --ci --config src-tauri/tauri.ci.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
         env:
           APPLE_SIGNING_IDENTITY: "-"
           NO_STRIP: "true"
+      - if: runner.os == 'macOS'
+        run: tar -czf target/universal-apple-darwin/release/bundle/macos/Requant-Wallet.app.tar.gz -C target/universal-apple-darwin/release/bundle/macos 'Requant Wallet.app'
       - uses: actions/upload-artifact@v4
         with:
           name: requant-wallet-${{ matrix.artifact }}
@@ -71,6 +75,26 @@ jobs:
             target/**/bundle/dmg/*.dmg
             target/**/bundle/appimage/*.AppImage
             target/**/bundle/deb/*.deb
+            target/**/bundle/macos/*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with: { node-version: "24", cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { toolchain: "1.99.0", targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+      - run: npm ci
+      - run: cargo test --locked -p requant-browser-core -p requant-wallet-portable
+      - run: npm run build:web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: requant-web-wallet
+          path: dist-web/
           if-no-files-found: error
           retention-days: 30
   android:
@@ -102,12 +126,15 @@ jobs:
           found=0
           while IFS= read -r -d '' apk; do
             "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
+            "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | sed -n '1p' > "${apk}.metadata.txt"
             found=$((found + 1))
           done < <(find src-tauri/gen/android/app/build/outputs/apk -path '*/release/*.apk' -print0)
           test "$found" -gt 0
       - uses: actions/upload-artifact@v4
         with:
           name: requant-wallet-android-arm64
-          path: src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/**/release/*.metadata.txt
           if-no-files-found: error
           retention-days: 30

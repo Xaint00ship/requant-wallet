@@ -1,0 +1,9 @@
+/* Native mobile safe areas and full-feature navigation. */
+@media (max-width: 700px) {
+  .main {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  .sidebar {
+    padding-top: env(safe-area-inset-top);
+  }
+}

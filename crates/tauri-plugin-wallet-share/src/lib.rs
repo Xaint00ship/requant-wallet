@@ -15,6 +15,18 @@ impl<R: Runtime, T: Manager<R>> WalletShareExt<R> for T {
     }
 }
 impl<R: Runtime> WalletShare<R> {
+    pub fn check_update(&self) -> Result<serde_json::Value, String> {
+        self.update_command("checkUpdate")
+    }
+    pub fn install_update(&self) -> Result<serde_json::Value, String> {
+        self.update_command("installUpdate")
+    }
+    fn update_command(&self, command: &str) -> Result<serde_json::Value, String> {
+        #[cfg(target_os = "android")]
+        { self.0.run_mobile_plugin(command, serde_json::json!({})).map_err(|e| e.to_string()) }
+        #[cfg(not(target_os = "android"))]
+        { let _ = command; Err("Use the desktop updater on this platform.".into()) }
+    }
     pub fn address(&self, address: &str) -> Result<(), String> {
         #[cfg(target_os = "android")]
         {

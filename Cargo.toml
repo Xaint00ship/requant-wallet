@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
-members = ["crates/wallet-core", "crates/tauri-plugin-wallet-share", "src-tauri", "vendor/consensus", "vendor/tnet"]
+members = ["crates/wallet-core", "crates/browser-core", "vendor/wallet", "crates/tauri-plugin-wallet-share", "src-tauri", "vendor/consensus", "vendor/tnet"]
 default-members = ["crates/wallet-core"]

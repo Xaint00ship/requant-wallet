@@ -32,6 +32,7 @@ import {
   fileDialogOpen,
 } from "./api";
 import { rqt, short } from "./amounts.mjs";
+import useWalletUpdates from "./WalletUpdates";
 type Wallet = {
   id: string;
   name: string;
@@ -316,13 +317,27 @@ export default function App() {
   function footer() {
     return (
       <footer>
-        <span>Requant Wallet · v0.1.0</span>
+        <span>Requant Wallet · v0.3.0</span>
         <span>Testnet coins have no value.</span>
       </footer>
     );
   }
   const setupMode =
     setup || (!current ? "welcome" : current.locked ? "unlock" : "");
+  const walletUpdates = useWalletUpdates({
+    locked: wallets.every((w) => w.locked),
+    blocked:
+      busy ||
+      !!review ||
+      !!setup ||
+      page === "send" ||
+      (setupMode !== "unlock" && setupMode !== "welcome" && !!setupMode),
+    beforeInstall: async () => {
+      await lock();
+    },
+    onInstalling: setBusy,
+    showDetails: page === "settings",
+  });
   if (setupMode) {
     return (
       <div className="setup-shell">
@@ -337,6 +352,7 @@ export default function App() {
           </div>
         )}
         <main className="setup-card">
+          {walletUpdates}
           {setupMode === "welcome" && (
             <>
               <div className="eyebrow">LOCAL KEY STORAGE</div>
@@ -720,10 +736,11 @@ export default function App() {
         <div className="sidebar-bottom">
           {button("Add wallet", () => setSetup("create"), false, Plus)}
           {button("Lock wallet", () => void task(lock), false, Lock)}
-          <span className="muted small">v0.1.0 / Testnet</span>
+          <span className="muted small">v0.2.0 / Testnet</span>
         </div>
       </aside>
       <main className="workspace">
+        {walletUpdates}
         <header className="workspace-header">
           <h1>
             {page === "send"

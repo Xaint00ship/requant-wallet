@@ -18,3 +18,6 @@ src-tauri/gen/
 *.tsbuildinfo
 *.properties
 !gradle-wrapper.properties
+
+pkg-browser/
+dist-web/
