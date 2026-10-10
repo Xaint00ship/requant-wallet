@@ -73,6 +73,25 @@ jobs:
             target/**/bundle/deb/*.deb
           if-no-files-found: error
           retention-days: 30
+  web:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with: { node-version: "24", cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { toolchain: "1.99.0", targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install wasm-bindgen-cli --version 0.2.129 --locked
+      - run: npm ci
+      - run: cargo test --locked -p requant-browser-core -p requant-wallet-portable
+      - run: npm run build:web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: requant-web-wallet
+          path: dist-web/
+          if-no-files-found: error
+          retention-days: 30
   android:
     runs-on: ubuntu-24.04
     steps:

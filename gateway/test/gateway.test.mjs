@@ -20,6 +20,55 @@ test("gateway permits only bounded wallet operations", () => {
     validateRequest({ method: "history", params: ["a".repeat(64), 101] }),
   );
   assert.throws(() => validateRequest({ method: "getblock", params: [1] }));
+  assert.throws(() =>
+    validateRequest({
+      method: "gettxbatch",
+      params: [Array(101).fill("a".repeat(64))],
+    }),
+  );
+  assert.throws(() =>
+    validateRequest({ method: "estimatefee", params: [999] }),
+  );
+  assert.equal(
+    validateRequest({ method: "estimatefee", params: [3] }).method,
+    "estimatefee",
+  );
+});
+
+test("source transaction batches preserve original integer bytes", async () => {
+  const raw =
+    '{"result":{"hex":"abc","value":9223372036854775808},"error":null}';
+  const server = createGateway({
+    rpcUrl: "http://node",
+    rpcToken: "test-only-token",
+    fetchNode: async (_url, options) => {
+      const request = JSON.parse(options.body);
+      assert.equal(request.method, "gettx");
+      assert.equal(request.params.length, 1);
+      return new Response(raw);
+    },
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${server.address().port}/wallet-api/v1/rpc`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: "gettxbatch",
+          params: [["a".repeat(64), "b".repeat(64)]],
+        }),
+      },
+    );
+    const body = await response.json();
+    assert.equal(body.error, null);
+    assert.equal(body.result.length, 2);
+    assert.equal(body.result[0].raw, raw);
+    assert(!JSON.stringify(body).includes("test-only-token"));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 test("gateway preserves uint64 bytes and blocks mutations before reaching the node", async () => {
   let calls = 0;

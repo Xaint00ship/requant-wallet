@@ -316,7 +316,7 @@ export default function App() {
   function footer() {
     return (
       <footer>
-        <span>Requant Wallet · v0.1.0</span>
+        <span>Requant Wallet · v0.2.0</span>
         <span>Testnet coins have no value.</span>
       </footer>
     );
@@ -720,7 +720,7 @@ export default function App() {
         <div className="sidebar-bottom">
           {button("Add wallet", () => setSetup("create"), false, Plus)}
           {button("Lock wallet", () => void task(lock), false, Lock)}
-          <span className="muted small">v0.1.0 / Testnet</span>
+          <span className="muted small">v0.2.0 / Testnet</span>
         </div>
       </aside>
       <main className="workspace">

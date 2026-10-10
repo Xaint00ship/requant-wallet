@@ -1,13 +1,13 @@
 :root {
   font-family: Inter, Arial, Helvetica, sans-serif;
-  color: #171717;
-  background: #f2efe8;
+  color: #20231f;
+  background: #f4f1e9;
   font-synthesis: none;
   font-weight: 400;
   --orange: #ff5426;
-  --line: #d5d2cc;
-  --muted: #71767e;
-  --white: #fbfaf7;
+  --line: #e4e4df;
+  --muted: #717786;
+  --white: #ffffff;
 }
 * {
   box-sizing: border-box;
@@ -103,7 +103,7 @@ a {
   justify-content: center;
   gap: 10px;
   font-weight: 600;
-  color: #171717;
+  color: #20231f;
 }
 .button:hover:enabled {
   background: #ebe8e0;
@@ -131,7 +131,7 @@ a {
   gap: 8px;
 }
 .icon-button {
-  color: #171717;
+  color: #20231f;
   border: 1px solid var(--line);
   border-radius: 7px;
 }
@@ -349,7 +349,7 @@ a {
 }
 .sub-balances strong {
   display: block;
-  color: #171717;
+  color: #20231f;
   font-size: 19px;
   margin-top: 6px;
   word-break: break-all;
@@ -517,7 +517,7 @@ a {
 }
 .empty h3 {
   margin-bottom: 7px;
-  color: #171717;
+  color: #20231f;
 }
 .empty p {
   font-size: 14px;
@@ -589,7 +589,7 @@ label {
 }
 input,
 select {
-  color: #171717;
+  color: #20231f;
   background: var(--white);
   border: 1px solid #b9bbc0;
   border-radius: 6px;
@@ -672,7 +672,7 @@ dd {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: #1717176b;
+  background: #20231f6b;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -956,7 +956,7 @@ footer {
     bottom: 0;
     left: 0;
     right: 0;
-    background: #fbfaf7f5;
+    background: #fffffff5;
     border-top: 1px solid var(--line);
     display: flex;
     z-index: 5;

@@ -1,0 +1,16 @@
+{
+  "system": "Signal",
+  "status": "Approved by user",
+  "approvedAt": "2026-10-10",
+  "fontFamily": "IBM Plex Sans",
+  "palette": {
+    "background": "#F4F1E9",
+    "surface": "#FFFFFF",
+    "foreground": "#20231F",
+    "muted": "#717786",
+    "accent": "#FF5426",
+    "border": "#E4E4DF"
+  },
+  "corners": "6px",
+  "publicLocale": "en"
+}

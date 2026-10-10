@@ -1,0 +1,291 @@
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-400.ttf") format("truetype");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-700.ttf") format("truetype");
+}
+
+/* Approved Signal system. Shared by Windows, macOS, Linux and Android. */
+:root {
+  font-family: "IBM Plex Sans", sans-serif;
+  color: #20231f;
+  background: #f4f1e9;
+  --white: #fff;
+  --line: #e4e4df;
+  --muted: #717786;
+}
+h1 {
+  font-size: clamp(28px, 3vw, 38px);
+  letter-spacing: -1.2px;
+  font-weight: 700;
+}
+h2 {
+  font-size: 21px;
+  letter-spacing: -0.6px;
+}
+.button {
+  border-color: var(--line);
+  background: #fafaf8;
+  border-radius: 6px;
+  font-weight: 500;
+  min-height: 44px;
+}
+.button:hover:enabled {
+  background: #f1f1ed;
+}
+.icon-button,
+input,
+select,
+.input-unit {
+  border-color: var(--line);
+  border-radius: 6px;
+}
+.card,
+.setup-card,
+.detail-modal {
+  background: #fff;
+  border-radius: 6px;
+}
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  gap: 10px;
+}
+.brand img {
+  width: 36px;
+  height: 36px;
+}
+.brand span {
+  line-height: 1.18;
+}
+.badge {
+  border: 0;
+  background: #edf5ef;
+  color: #315840;
+  border-radius: 24px;
+  padding: 8px 13px;
+  font-size: 11px;
+}
+.badge i {
+  width: 6px;
+  height: 6px;
+  background: #3b7651;
+}
+.sidebar {
+  width: 196px;
+  background: #f8f7f3;
+  padding: 28px 18px;
+  gap: 38px;
+}
+.sidebar nav {
+  gap: 7px;
+}
+.sidebar nav button {
+  height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+  gap: 12px;
+  border-radius: 6px;
+  color: #41444b;
+}
+.sidebar nav button:hover {
+  background: #f0efe9;
+}
+.sidebar nav button.active {
+  background: #fff0e8;
+  color: #d73d13;
+  font-weight: 500;
+}
+.sidebar nav button.active:before {
+  display: none;
+}
+.sidebar nav button svg {
+  width: 19px;
+  height: 19px;
+}
+.sidebar-bottom {
+  gap: 6px;
+}
+.workspace {
+  padding: 28px 28px 0;
+}
+.workspace-header {
+  margin-bottom: 24px;
+}
+.overview-grid {
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 270px;
+}
+.card {
+  padding: 24px;
+}
+.balance {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(25px, 3.3vw, 44px);
+  letter-spacing: -1.4px;
+}
+.balance-card .eyebrow {
+  font-size: 14px;
+  color: #717786;
+  margin-bottom: 16px;
+}
+.balance-card .button {
+  min-height: 44px;
+  max-width: 210px;
+}
+.sub-balances {
+  font-size: 12px;
+}
+.sub-balances strong,
+.amount,
+.input-unit input,
+.total {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.sub-balances strong {
+  font-size: 17px;
+  font-weight: 500;
+}
+.qr {
+  border-radius: 6px;
+  background: #fff;
+}
+.tensor {
+  opacity: 0.65;
+  top: 32px;
+  right: 4px;
+  width: 120px;
+}
+.tensor i {
+  width: 82px;
+  height: 60px;
+  border: 1px solid #e5e3dd;
+  background: linear-gradient(135deg, #fff, #e9e8e2);
+  box-shadow: 5px 5px 0 #d9d8d2;
+  transform: rotateX(58deg) rotateZ(38deg);
+  border-radius: 3px;
+}
+.tensor i:nth-child(3),
+.tensor i:nth-child(4) {
+  background: #ff5426;
+  box-shadow: 5px 5px 0 #e44017;
+  border-color: #ff774e;
+}
+.form-card h2 {
+  font-size: 25px;
+}
+label {
+  color: #41444b;
+  font-size: 13px;
+}
+.notice,
+.backup-note,
+.offline-note {
+  border-radius: 6px;
+}
+.notice {
+  background: #faf8f2;
+  border-color: #e4e4df;
+}
+.backup-note {
+  background: #fff6eb;
+  border-color: #f2e2cf;
+}
+.offline-note {
+  background: #f5f5f0;
+}
+.setup-shell {
+  background: #f4f1e9;
+}
+.setup-card {
+  border: 1px solid #e4e4df;
+  box-shadow: 0 12px 40px #20231f05;
+}
+.setup-card h1 {
+  font-size: 36px;
+  letter-spacing: -1.2px;
+}
+.setup-note {
+  color: #717786;
+}
+.status {
+  border-radius: 24px;
+  font-size: 11px;
+}
+.status.confirmed {
+  background: #edf5ef;
+  color: #315840;
+}
+.activity-row:hover {
+  background: #fafaf8;
+}
+footer {
+  color: #717786;
+}
+@media (max-width: 760px) {
+  .sidebar {
+    display: none;
+  }
+  .workspace {
+    padding: 23px 18px 0;
+  }
+  .workspace-header {
+    gap: 14px;
+  }
+  .workspace-header h1 {
+    font-size: 29px;
+  }
+  .overview-grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    padding: 21px;
+  }
+  .balance {
+    font-size: clamp(25px, 6.8vw, 40px);
+  }
+  .mobile-nav {
+    background: #fff;
+  }
+  .mobile-nav button {
+    font-size: 12px;
+  }
+  .mobile-nav button.active {
+    background: #fff0e8;
+    border-radius: 6px;
+  }
+  .mobile-nav button.active:after {
+    display: none;
+  }
+  .setup-shell {
+    padding: 22px 18px calc(10px + env(safe-area-inset-bottom));
+  }
+  .setup-card {
+    padding: 25px;
+  }
+  .button,
+  input,
+  select,
+  .icon-button {
+    min-height: 48px;
+  }
+}
