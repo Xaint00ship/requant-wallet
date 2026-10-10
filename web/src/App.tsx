@@ -253,6 +253,7 @@ export default function App() {
     setReveal(false);
     setPlan(null);
     setOfflineReview(null);
+    setSigned(null);
     setModal(null);
     setNotice("Signing session locked.");
   };
@@ -573,6 +574,7 @@ export default function App() {
     setConfirm("");
     setView(v);
     setPlan(null);
+    setSigned(null);
     setPassword("");
     setOfflineReview(null);
     setError("");

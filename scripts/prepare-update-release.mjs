@@ -143,7 +143,7 @@ const platform = (entry) => ({ url: entry.url, signature: entry.signature });
 const desktop = {
   version,
   notes:
-    "Signed wallet updates, safe web refresh, Android installer updates and browser update notifications. Compatible with testnet v2 transaction sources.",
+    "HD recovery, watch-only and offline signing across all wallets; multiple recipients, deposit lists and signed platform updates. Compatible with Requant wallet 0.4.1 and testnet v2 transaction sources.",
   pub_date: new Date().toISOString(),
   platforms: {
     "windows-x86_64": platform(win),
