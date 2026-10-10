@@ -11,6 +11,26 @@ import app.tauri.plugin.Invoke
 class AddressArgs { lateinit var address: String }
 @TauriPlugin
 class WalletSharePlugin(private val activity: Activity): Plugin(activity) {
+    private val updates = WalletUpdater(activity)
+    @Command
+    fun checkUpdate(invoke: Invoke) {
+        Thread {
+            try { invoke.resolve(updates.check()) }
+            catch (error: Exception) { invoke.reject(error.message ?: "Cannot check wallet updates.") }
+        }.start()
+    }
+    @Command
+    fun installUpdate(invoke: Invoke) {
+        Thread {
+            try {
+                updates.verifyReady()
+                activity.runOnUiThread {
+                    try { invoke.resolve(updates.install()) }
+                    catch (error: Exception) { invoke.reject("Cannot open the Android update installer.") }
+                }
+            } catch (error: Exception) { invoke.reject(error.message ?: "Update verification failed.") }
+        }.start()
+    }
     @Command
     fun shareAddress(invoke: Invoke) {
         val address = invoke.parseArgs(AddressArgs::class.java).address

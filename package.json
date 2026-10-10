@@ -1,6 +1,6 @@
 {
   "name": "requant-wallet-app",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,24 +17,26 @@
     "test:web-core": "cargo test -p requant-browser-core -p requant-wallet-portable"
   },
   "dependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
     "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-fs": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.5.0",
-    "@tauri-apps/plugin-clipboard-manager": "^2.3.0",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.13.3",
     "lucide-react": "^0.468.0",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.0",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@types/qrcode": "^1.5.5",
     "@vitejs/plugin-react": "^5.0.0",
-    "vite": "^7.0.0",
+    "prettier": "^3.6.0",
     "typescript": "^5.9.0",
-    "prettier": "^3.6.0"
+    "vite": "^7.0.0"
   }
 }

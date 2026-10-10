@@ -51,7 +51,7 @@ fn spend(chain: &Chain, from: &SigningKey, op: OutPoint, to: &Hash, value: u64) 
         outputs.push(Output { value: coin.output.value - value - 1000, pkh: addr(from) });
         // fee 1000
     }
-    let mut tx = Tx::Transfer { inputs: vec![Input { prev: op, pubkey: [0; 32], sig: [0; 64] }], outputs };
+    let mut tx = Tx::Transfer { inputs: vec![Input::new(op)], outputs };
     tx.sign(&chain.net.chain_id, &[from]);
     tx
 }
@@ -194,7 +194,7 @@ fn reorg_to_more_work_and_back_on_invalid() {
     let m3_id = m3.id(&chain.net);
     assert_eq!(chain.accept(m3, NOW), Ok(Accepted::SideChain));
     let mut bad_tx = Tx::Transfer {
-        inputs: vec![Input { prev: OutPoint { txid: [7; 32], vout: 0 }, pubkey: [0; 32], sig: [0; 64] }],
+        inputs: vec![Input::new(OutPoint { txid: [7; 32], vout: 0 })],
         outputs: vec![Output { value: 1, pkh: addr(&bob) }],
     };
     bad_tx.sign(&chain.net.chain_id, &[&bob]);
@@ -259,10 +259,8 @@ fn development_fund_share_and_sunset() {
     let coins = chain.coins_of(&fund);
     assert_eq!(coins.len() as u64, last);
     let (op, coin) = coins[0];
-    let mut tx = Tx::Transfer {
-        inputs: vec![Input { prev: op, pubkey: [0; 32], sig: [0; 64] }],
-        outputs: vec![Output { value: coin.output.value, pkh: miner }],
-    };
+    let mut tx =
+        Tx::Transfer { inputs: vec![Input::new(op)], outputs: vec![Output { value: coin.output.value, pkh: miner }] };
     tx.sign(&chain.net.chain_id, &[&dev]);
     extend(&mut chain, &miner, vec![tx]);
 }
@@ -328,6 +326,47 @@ fn reorg_limit_refuses_deep_forks() {
 }
 
 #[test]
+fn reorg_limit_waits_for_min_chain_work() {
+    // a node still below the known chain work (syncing) follows any fork with more work
+    let mut net = Network::regtest();
+    net.min_chain_work = requant_consensus::u256::U256::MAX;
+    let mut chain = Chain::new(net, 1);
+    chain.set_max_reorg(3);
+    let alice = addr(&key(1));
+    let mut ids = vec![chain.tip()];
+    for _ in 0..6 {
+        let b = extend(&mut chain, &alice, vec![]);
+        ids.push(b.id(&chain.net));
+    }
+    let deep = block_on(&mut chain, &ids[2], &addr(&key(2)), vec![]);
+    assert_eq!(chain.accept(deep, NOW), Ok(Accepted::SideChain));
+}
+
+#[test]
+fn cheap_checks_come_first() {
+    let mut chain = Chain::new(Network::regtest(), 1);
+    let alice = key(1);
+    let b1 = extend(&mut chain, &addr(&alice), vec![]);
+    for _ in 0..chain.net.maturity {
+        extend(&mut chain, &addr(&key(9)), vec![]);
+    }
+    let op = OutPoint { txid: b1.txs[0].txid(), vout: 0 };
+    let mut tx = spend(&chain, &alice, op, &addr(&key(2)), 5);
+    if let Tx::Transfer { inputs, .. } = &mut tx {
+        inputs[0].sig[0] ^= 1;
+    }
+    // unknown parent is reported before the (expensive) signature check
+    let tip = chain.tip();
+    let mut b = block_on(&mut chain, &tip, &addr(&key(3)), vec![tx]);
+    b.header.prev = [7; 32];
+    assert_eq!(chain.accept(b.clone(), NOW), Err(Error::UnknownParent));
+    // an out-of-range claim is refused before any epoch weights are touched
+    let mut b = block_on(&mut chain, &tip, &addr(&key(3)), vec![]);
+    b.claim.i = chain.net.tnet.b as u32;
+    assert_eq!(chain.accept(b, NOW), Err(Error::Invalid("claim index")));
+}
+
+#[test]
 fn upcoming_epochs_are_announced_after_the_anchor() {
     let net = Network::regtest();
     let (len, back) = (net.epoch_len, net.lookback);
@@ -344,4 +383,230 @@ fn upcoming_epochs_are_announced_after_the_anchor() {
     chain.insert_epoch(seeds[1], e.clone());
     assert!(chain.has_epoch(&seeds[1]));
     assert!(std::sync::Arc::ptr_eq(&chain.epoch(&seeds[1]), &e));
+}
+
+#[test]
+fn headers_first() {
+    use requant_consensus::headers::HeaderChain;
+    // a source chain with a side branch
+    let mut src = Chain::new(Network::regtest(), 1);
+    let alice = addr(&key(1));
+    let mut blocks = Vec::new();
+    for _ in 0..20 {
+        blocks.push(extend(&mut src, &alice, vec![]));
+    }
+
+    // headers alone reproduce the best chain, verifying every claim
+    let mut weights = Chain::new(Network::regtest(), 1); // provides epoch weights
+    let mut hc = HeaderChain::new(Network::regtest(), 1);
+    for b in &blocks {
+        assert_eq!(hc.accept(b.header, b.claim.clone(), NOW, &mut |s: &Hash| weights.epoch(s)), Ok(true));
+    }
+    assert_eq!(hc.height(), 20);
+    assert_eq!(hc.tip(), src.tip());
+    assert_eq!(hc.accept(blocks[3].header, blocks[3].claim.clone(), NOW, &mut |s: &Hash| weights.epoch(s)), Ok(false));
+    assert_eq!(hc.locator()[0], src.tip());
+
+    // a tampered claim or a wrong target is refused
+    let src_tip = src.tip();
+    let mut b = block_on(&mut src, &src_tip, &alice, vec![]);
+    let good = b.clone();
+    b.claim.piece[0] = b.claim.piece[0].wrapping_add(1);
+    assert!(hc.accept(b.header, b.claim, NOW, &mut |s: &Hash| weights.epoch(s)).is_err());
+    let mut t = good.clone();
+    t.header.target = t.header.target.mul_shift(1, -1).unwrap();
+    assert!(hc.accept(t.header, t.claim, NOW, &mut |s: &Hash| weights.epoch(s)).is_err());
+
+    // bodies along the header chain are accepted without recomputing the claims
+    let mut dst = Chain::new(Network::regtest(), 1);
+    for id in hc.best_ids(1, hc.height()) {
+        let b = src.block(&id).unwrap();
+        assert!(dst.accept_prevalidated((*b).clone(), NOW).is_ok());
+    }
+    assert_eq!(dst.tip(), src.tip());
+
+    // a heavier branch from height 18 moves the best header chain; marking it invalid moves it back
+    let fork_at = src.active_id(18).unwrap();
+    let s1 = block_on(&mut src, &fork_at, &addr(&key(2)), vec![]);
+    let s1_id = s1.id(&src.net);
+    src.accept(s1.clone(), NOW).unwrap();
+    let s2 = block_on(&mut src, &s1_id, &addr(&key(2)), vec![]);
+    src.accept(s2.clone(), NOW).unwrap();
+    let s2_id = s2.id(&src.net);
+    let s3 = block_on(&mut src, &s2_id, &addr(&key(2)), vec![]);
+    src.accept(s3.clone(), NOW).unwrap();
+    for b in [&s1, &s2, &s3] {
+        assert_eq!(hc.accept(b.header, b.claim.clone(), NOW, &mut |s: &Hash| weights.epoch(s)), Ok(true));
+    }
+    assert_eq!(hc.height(), 21);
+    assert_eq!(hc.tip(), s3.id(&src.net));
+    hc.mark_invalid(&s1_id);
+    assert_eq!(hc.height(), 20);
+    assert_eq!(hc.tip(), blocks[19].id(&src.net));
+    assert!(!hc.contains(&s3.id(&src.net)));
+
+    // headers of blocks accepted elsewhere can be added without verification
+    let mut hc2 = HeaderChain::new(Network::regtest(), 1);
+    for b in &blocks {
+        hc2.add_valid(&b.header, &b.claim);
+    }
+    assert_eq!(hc2.tip(), blocks[19].id(&src.net));
+}
+
+/// Two chained transfers inside one block: A pays bob, B spends A's output.
+fn chained_pair(chain: &Chain, alice: &SigningKey, bob: &SigningKey, op: OutPoint) -> (Tx, Tx) {
+    let a = spend(chain, alice, op, &addr(bob), 50_000);
+    let mut b = Tx::Transfer {
+        inputs: vec![Input::new(OutPoint { txid: a.txid(), vout: 0 })],
+        outputs: vec![Output { value: 40_000, pkh: addr(&key(3)) }],
+    };
+    b.sign(&chain.net.chain_id, &[bob]);
+    (a, b)
+}
+
+#[test]
+fn undo_restores_exactly_after_reorg_and_failed_connect() {
+    let mut chain = Chain::new(Network::regtest(), 1);
+    let (alice, bob) = (key(1), key(2));
+    let first = extend(&mut chain, &addr(&alice), vec![]);
+    extend(&mut chain, &addr(&alice), vec![]);
+    let op = OutPoint { txid: first.txs[0].txid(), vout: 0 };
+    let before: Vec<_> = [addr(&alice), addr(&bob), addr(&key(3))].iter().map(|o| chain.coins_of(o)).collect();
+    let fork_point = chain.tip();
+
+    // failed connect: [coinbase, A, B, C with a missing input] must leave the UTXO set untouched
+    let (a, b) = chained_pair(&chain, &alice, &bob, op);
+    let mut c = Tx::Transfer {
+        inputs: vec![Input::new(OutPoint { txid: [7; 32], vout: 0 })],
+        outputs: vec![Output { value: 1, pkh: addr(&bob) }],
+    };
+    c.sign(&chain.net.chain_id, &[&bob]);
+    let bad = block_on(&mut chain, &fork_point, &addr(&alice), vec![a.clone(), b.clone(), c]);
+    assert!(chain.accept(bad, NOW).is_err());
+    assert!(chain.coin(&OutPoint { txid: a.txid(), vout: 0 }).is_none(), "phantom output after a failed connect");
+    let after: Vec<_> = [addr(&alice), addr(&bob), addr(&key(3))].iter().map(|o| chain.coins_of(o)).collect();
+    assert_eq!(before, after);
+
+    // reorg: a block with A and B is disconnected by a heavier branch without them
+    let good = block_on(&mut chain, &fork_point, &addr(&alice), vec![a.clone(), b]);
+    assert_eq!(chain.accept(good, NOW), Ok(Accepted::NewTip));
+    let s1 = block_on(&mut chain, &fork_point, &addr(&key(4)), vec![]);
+    let s1_id = s1.id(&chain.net);
+    chain.accept(s1, NOW).unwrap();
+    let s2 = block_on(&mut chain, &s1_id, &addr(&key(4)), vec![]);
+    assert!(matches!(chain.accept(s2, NOW), Ok(Accepted::Reorg { disconnected: 1 })));
+    assert!(chain.coin(&OutPoint { txid: a.txid(), vout: 0 }).is_none(), "phantom output after a reorg");
+    assert!(chain.coin(&op).is_some(), "the spent coin is back");
+    assert!(chain.coins_of(&addr(&key(3))).is_empty());
+}
+
+#[test]
+fn supply_audit_and_utxo_hash() {
+    let (mut a, mut b) = (Chain::new(Network::regtest(), 1), Chain::new(Network::regtest(), 1));
+    let alice = addr(&key(1));
+    for _ in 0..5 {
+        let blk = extend(&mut a, &alice, vec![]);
+        assert!(b.accept(blk, NOW).is_ok());
+    }
+    // the same blocks give the same set, hash and total, within what the schedule issued
+    let (total, count, hash) = a.utxo_audit();
+    assert_eq!(b.utxo_audit(), (total, count, hash));
+    assert!(total > 0 && total <= a.issued());
+    extend(&mut a, &alice, vec![]);
+    assert_ne!(a.utxo_audit().2, hash);
+}
+
+/// Bodies kept apart, as a node's block file would.
+struct MapBodies(std::sync::Mutex<std::collections::HashMap<Hash, Block>>);
+
+impl requant_consensus::chain::BodySource for MapBodies {
+    fn load(&self, id: &Hash) -> Option<Block> {
+        self.0.lock().unwrap().get(id).cloned()
+    }
+}
+
+#[test]
+fn old_bodies_leave_memory_and_a_deep_reorg_reads_them_back() {
+    let src = std::sync::Arc::new(MapBodies(Default::default()));
+    let mut chain = Chain::new(Network::regtest(), 1);
+    let mut full = Chain::new(Network::regtest(), 1); // keeps everything in memory, for comparison
+    chain.set_body_source(src.clone(), 5);
+    let (alice, bob) = (addr(&key(1)), addr(&key(2)));
+    let mut ids = vec![chain.tip()];
+    for _ in 0..12 {
+        let tip = chain.tip();
+        let b = block_on(&mut chain, &tip, &alice, vec![]);
+        src.0.lock().unwrap().insert(b.id(&chain.net), b.clone());
+        ids.push(b.id(&chain.net));
+        assert_eq!(full.accept(b.clone(), NOW), Ok(Accepted::NewTip));
+        assert_eq!(chain.accept(b, NOW), Ok(Accepted::NewTip));
+    }
+    // genesis and the last five keep their bodies; older ones come back from the source
+    assert!(chain.bodies_in_memory() <= 6, "{} bodies in memory", chain.bodies_in_memory());
+    assert_eq!(chain.block(&ids[2]).unwrap().header.height, 2);
+    // a branch from height 3 overtakes the tip: nine blocks are disconnected, most of them read back
+    let mut parent = ids[3];
+    let mut last = Accepted::SideChain;
+    for _ in 0..10 {
+        let b = block_on(&mut chain, &parent, &bob, vec![]);
+        parent = b.id(&chain.net);
+        src.0.lock().unwrap().insert(parent, b.clone());
+        full.accept(b.clone(), NOW).unwrap();
+        last = chain.accept(b, NOW).unwrap();
+    }
+    assert_eq!(last, Accepted::Reorg { disconnected: 9 });
+    assert_eq!(chain.tip(), full.tip());
+    assert_eq!(chain.utxo_audit(), full.utxo_audit(), "same UTXO set as a chain holding every body");
+}
+
+#[test]
+fn a_restored_snapshot_equals_the_chain_and_keeps_working() {
+    let src = std::sync::Arc::new(MapBodies(Default::default()));
+    let mut chain = Chain::new(Network::regtest(), 1);
+    let (alice, bob) = (key(1), key(2));
+    let mut ids = vec![chain.tip()];
+    for i in 0..8 {
+        let tip = chain.tip();
+        let txs = if i == 4 {
+            let op = OutPoint { txid: chain.block(&ids[1]).unwrap().txs[0].txid(), vout: 0 };
+            vec![spend(&chain, &alice, op, &addr(&bob), ATOMS_PER_RQT)]
+        } else {
+            vec![]
+        };
+        let b = block_on(&mut chain, &tip, &addr(&alice), txs);
+        src.0.lock().unwrap().insert(b.id(&chain.net), b.clone());
+        ids.push(b.id(&chain.net));
+        assert_eq!(chain.accept(b, NOW), Ok(Accepted::NewTip));
+    }
+    // a side branch is part of the index too
+    let side = block_on(&mut chain, &ids[6], &addr(&bob), vec![]);
+    src.0.lock().unwrap().insert(side.id(&chain.net), side.clone());
+    assert_eq!(chain.accept(side.clone(), NOW), Ok(Accepted::SideChain));
+
+    let snap = chain.snapshot();
+    let mut back = Chain::restore(Network::regtest(), 1, &snap).unwrap();
+    back.set_body_source(src.clone(), 3);
+    assert_eq!((back.tip(), back.height(), back.issued()), (chain.tip(), chain.height(), chain.issued()));
+    assert_eq!(back.utxo_audit(), chain.utxo_audit());
+    assert_eq!(back.snapshot().len(), snap.len());
+    assert_eq!(back.best_headers().len() as u64, back.height());
+    assert_eq!(back.block(&ids[2]).unwrap().header.height, 2, "old bodies come from the source");
+
+    // both grow the same way, including a reorg onto the side branch read back from the source
+    let mut parent = side.id(&chain.net);
+    for _ in 0..3 {
+        let b = block_on(&mut chain, &parent, &addr(&bob), vec![]);
+        parent = b.id(&chain.net);
+        src.0.lock().unwrap().insert(parent, b.clone());
+        let r = chain.accept(b.clone(), NOW).unwrap();
+        assert_eq!(back.accept(b, NOW).unwrap(), r);
+    }
+    assert_eq!(back.tip(), chain.tip());
+    assert_eq!(back.utxo_audit(), chain.utxo_audit());
+
+    // damage is refused, not half-loaded
+    assert!(Chain::restore(Network::regtest(), 1, &snap[..snap.len() - 1]).is_err());
+    let mut other = snap.clone();
+    other[0] ^= 1;
+    assert!(Chain::restore(Network::regtest(), 1, &other).is_err());
 }

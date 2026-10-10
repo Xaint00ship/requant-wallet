@@ -121,17 +121,13 @@ pub fn sign(
     let inputs = selected
         .iter()
         .map(|c| {
-            Ok(Input {
-                prev: OutPoint {
-                    txid: hex::decode(&c.txid)
-                        .map_err(|_| "Invalid transaction ID.")?
-                        .try_into()
-                        .map_err(|_| "Invalid transaction ID.")?,
-                    vout: c.vout,
-                },
-                pubkey: [0; 32],
-                sig: [0; 64],
-            })
+            Ok(Input::new(OutPoint {
+                txid: hex::decode(&c.txid)
+                    .map_err(|_| "Invalid transaction ID.")?
+                    .try_into()
+                    .map_err(|_| "Invalid transaction ID.")?,
+                vout: c.vout,
+            }))
         })
         .collect::<Result<Vec<_>>>()?;
     let mut tx = Tx::Transfer { inputs, outputs };

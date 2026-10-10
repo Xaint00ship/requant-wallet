@@ -59,10 +59,14 @@ jobs:
       - run: npm ci
       - if: runner.os == 'Linux'
         run: cargo test --locked -p requant-wallet-app --lib
-      - run: npm run tauri -- build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      # Keep the updater private key on the release operator's machine. CI produces
+      # packages; scripts/prepare-update-release.mjs signs the reviewed artifacts.
+      - run: npm run tauri -- build --ci --config src-tauri/tauri.ci.conf.json --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
         env:
           APPLE_SIGNING_IDENTITY: "-"
           NO_STRIP: "true"
+      - if: runner.os == 'macOS'
+        run: tar -czf target/universal-apple-darwin/release/bundle/macos/Requant-Wallet.app.tar.gz -C target/universal-apple-darwin/release/bundle/macos 'Requant Wallet.app'
       - uses: actions/upload-artifact@v4
         with:
           name: requant-wallet-${{ matrix.artifact }}
@@ -71,6 +75,7 @@ jobs:
             target/**/bundle/dmg/*.dmg
             target/**/bundle/appimage/*.AppImage
             target/**/bundle/deb/*.deb
+            target/**/bundle/macos/*.tar.gz
           if-no-files-found: error
           retention-days: 30
   web:
@@ -121,12 +126,15 @@ jobs:
           found=0
           while IFS= read -r -d '' apk; do
             "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
+            "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | sed -n '1p' > "${apk}.metadata.txt"
             found=$((found + 1))
           done < <(find src-tauri/gen/android/app/build/outputs/apk -path '*/release/*.apk' -print0)
           test "$found" -gt 0
       - uses: actions/upload-artifact@v4
         with:
           name: requant-wallet-android-arm64
-          path: src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/release/*.apk
+            src-tauri/gen/android/app/build/outputs/apk/**/release/*.metadata.txt
           if-no-files-found: error
           retention-days: 30

@@ -30,6 +30,7 @@ import {
 import QRCode from "qrcode";
 import * as api from "./service";
 import { rqt, short } from "../../src/amounts.mjs";
+import { useWebUpdates } from "./updates";
 type View =
   | "wallet"
   | "send"
@@ -235,6 +236,25 @@ export default function App() {
     setModal(null);
     setNotice("Signing session locked.");
   };
+  const walletUpdate = useWebUpdates(
+    !!busy ||
+      !!setup ||
+      !!phrase ||
+      !!modal ||
+      !!plan ||
+      !!signed ||
+      !!offlineReview ||
+      view === "send" ||
+      view === "offline" ||
+      !!password ||
+      !!source,
+    clear,
+    () => {
+      clear();
+      setBusy("Updating wallet…");
+    },
+    () => setBusy(""),
+  );
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const touch = () => {
@@ -386,7 +406,8 @@ export default function App() {
     setFeeTarget(target);
     try {
       const r = await api.rpc("estimatefee", [target]);
-      const value = r.result.atoms_per_byte ?? r.result.rate;
+      const value =
+        r.result.feerate ?? r.result.atoms_per_byte ?? r.result.rate;
       if (value && /^\d+$/.test(String(value))) {
         setRate(String(value));
         setEstimateAvailable(true);
@@ -727,6 +748,26 @@ export default function App() {
             </button>
           )}
         </header>
+        {walletUpdate.waiting && (
+          <div className="message" role="status">
+            <RefreshCw size={17} />
+            <span>{walletUpdate.status}</span>
+            <Button
+              disabled={
+                !!busy ||
+                !!setup ||
+                !!phrase ||
+                !!modal ||
+                !!plan ||
+                view === "send" ||
+                view === "offline"
+              }
+              onClick={walletUpdate.apply}
+            >
+              Update wallet
+            </Button>
+          </div>
+        )}
         {busy && (
           <div className="message working" role="status">
             <RefreshCw size={17} className="spin" />
