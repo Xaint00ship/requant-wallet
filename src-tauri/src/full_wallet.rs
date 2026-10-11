@@ -19,11 +19,15 @@ fn validate(data: &BTreeMap<String, String>) -> Result<()> {
             "requant.web.v1",
             "requant.web.outbox.v1",
             "requant.settings.v1",
+            "requant.protocols.v1",
         ]
         .contains(&key.as_str())
         {
             return Err("Unsupported wallet storage key.".into());
         }
+    }
+    if let Some(data) = data.get("requant.protocols.v1") {
+        requant_browser_core::execute("protocolStore", &json!({"data":data}).to_string())?;
     }
     let list: Value = serde_json::from_str(
         data.get("requant.web.v1")
@@ -73,6 +77,12 @@ impl FullWalletStore {
                 "Wallet storage changed in another window. Reopen this wallet before continuing."
                     .into(),
             );
+        }
+        if key == "requant.protocols.v1" {
+            requant_browser_core::execute(
+                "protocolStore",
+                &json!({"data":value,"previous":self.disk.data.get(&key)}).to_string(),
+            )?;
         }
         let mut next = self.disk.clone();
         next.data.insert(key, value);
@@ -192,6 +202,7 @@ pub async fn full_wallet_rpc(
         "history",
         "estimatefee",
         "sendtx",
+        "sendpackage",
     ]
     .contains(&method.as_str())
     {
@@ -257,4 +268,19 @@ mod tests {
             1
         );
     }
+}
+
+#[tauri::command]
+pub async fn full_wallet_protocol(method: String, params: Value) -> Result<String> {
+    if !(method.starts_with("maker.") || method.starts_with("tron."))
+        || !params.is_array()
+        || params.to_string().len() > 32768
+    {
+        return Err("Unsupported protocol request.".into());
+    }
+    let result =
+        requant_wallet_core::network::Node::new("https://requant.network/wallet-api/v1/protocol")?
+            .rpc(&method, params)
+            .await?;
+    Ok(json!({"result":result,"error":null}).to_string())
 }

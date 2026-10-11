@@ -12,6 +12,7 @@ export type Platform = {
   save: (revision: number, key: string, value: string) => Promise<number>;
   core?: (op: string, args: Record<string, unknown>) => Promise<any>;
   rpc?: (method: string, params: unknown[]) => Promise<string>;
+  protocol?: (method: string, params: unknown[]) => Promise<string>;
   lock: () => void;
   download: (text: string, name: string) => Promise<boolean>;
   pick?: (max: number) => Promise<{ text: string; name: string } | null>;

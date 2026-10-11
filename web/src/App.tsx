@@ -29,6 +29,9 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import Conditions from "./Conditions";
+import { Swaps } from "./ProtocolUI";
+import Channels from "./Channels";
+import Packages from "./Packages";
 import * as api from "./service";
 import { rqt, short } from "../../src/amounts.mjs";
 import { platform, site } from "./platform";
@@ -41,6 +44,9 @@ type View =
   | "coins"
   | "activity"
   | "offline"
+  | "swaps"
+  | "channels"
+  | "packages"
   | "conditions"
   | "settings";
 type Modal =
@@ -59,6 +65,9 @@ const nav: { id: View; name: string; icon: typeof Wallet }[] = [
   { id: "coins", name: "Coins", icon: Layers },
   { id: "activity", name: "Activity", icon: Activity },
   { id: "offline", name: "Offline signing", icon: ShieldCheck },
+  { id: "swaps", name: "Swaps", icon: ArrowRight },
+  { id: "channels", name: "Channels", icon: ShieldCheck },
+  { id: "packages", name: "Packages", icon: FileUp },
   { id: "conditions", name: "Conditions", icon: ShieldCheck },
 ];
 const titles: Record<View, [string, string]> = {
@@ -74,6 +83,15 @@ const titles: Record<View, [string, string]> = {
   offline: [
     "Offline signing",
     "Prepare online. Sign offline. Broadcast online.",
+  ],
+  swaps: ["Atomic swaps", "Buy RQT with BTC, Lightning or USDT test payments."],
+  channels: [
+    "Payment channels",
+    "Fund once. Pay incrementally. Keep a signed refund.",
+  ],
+  packages: [
+    "Package relay",
+    "Review and submit signed parents and children together.",
   ],
   conditions: [
     "Spending conditions",
@@ -294,7 +312,7 @@ export default function App() {
     !!offlineReview ||
     view === "send" ||
     view === "offline" ||
-    view === "conditions" ||
+    ["conditions", "swaps", "channels", "packages"].includes(view) ||
     !!password ||
     !!source;
   const walletUpdate = useWebUpdates(
@@ -1784,6 +1802,30 @@ export default function App() {
                 )}
               </>
             )}
+            {view === "swaps" && (
+              <Swaps
+                wallet={current}
+                reset={lockTick}
+                busy={!!busy}
+                task={task}
+              />
+            )}
+            {view === "channels" && (
+              <Channels
+                wallet={current}
+                reset={lockTick}
+                busy={!!busy}
+                task={task}
+              />
+            )}
+            {view === "packages" && (
+              <Packages
+                wallet={current}
+                reset={lockTick}
+                busy={!!busy}
+                task={task}
+              />
+            )}
             {view === "conditions" && (
               <Conditions
                 wallet={current}
@@ -2134,6 +2176,9 @@ export default function App() {
               { id: "addresses", name: "Addresses & deposit lists" },
               { id: "coins", name: "Coins & consolidation" },
               { id: "offline", name: "Offline signing" },
+              { id: "swaps", name: "Swaps" },
+              { id: "channels", name: "Channels" },
+              { id: "packages", name: "Packages" },
               { id: "conditions", name: "Spending conditions" },
             ].map((item) => (
               <button

@@ -143,7 +143,7 @@ const platform = (entry) => ({ url: entry.url, signature: entry.signature });
 const desktop = {
   version,
   notes:
-    "HD recovery, watch-only and offline signing across all wallets; multiple recipients, deposit lists and signed platform updates. Compatible with Requant wallet 0.5.0 and testnet v2 transaction sources.",
+    "Atomic swaps (BTC Signet, Lightning and TRON Nile USDT), one-way payment channels and package relay across all wallets. Portable core 0.10.0; encrypted swap backups, local signing and signed platform updates.",
   pub_date: new Date().toISOString(),
   platforms: {
     "windows-x86_64": platform(win),

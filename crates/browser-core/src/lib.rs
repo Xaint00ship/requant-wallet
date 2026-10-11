@@ -1,4 +1,8 @@
+mod channels;
 mod conditions;
+mod packages;
+mod protocols;
+mod swaps;
 use ed25519_dalek::SigningKey;
 use requant_consensus::{
     address::{address, parse_address},
@@ -262,6 +266,22 @@ pub fn execute(op: &str, input: &str) -> Result<String> {
         "condition" | "secret" | "pubkey" | "contractPrepare" | "contractInspect" | "contractSign"
     ) {
         return conditions::execute(op, &v).map(|v| v.to_string());
+    }
+    if op == "protocolAddress" {
+        return Ok(json!({"owner":hex::encode(parse_address(&net,field(&v,"address")?).map_err(|_|"Invalid Requant address.")?)}).to_string());
+    }
+    if op == "protocolStore" {
+        protocols::store(field(&v, "data")?, v["previous"].as_str())?;
+        return Ok("{\"valid\":true}".into());
+    }
+    if op.starts_with("swap") {
+        return swaps::execute(op, &v).map(|v| v.to_string());
+    }
+    if op.starts_with("channel") {
+        return channels::execute(op, &v).map(|v| v.to_string());
+    }
+    if op == "packageInspect" {
+        return packages::inspect(&v).map(|v| v.to_string());
     }
     let out = match op {
         "create" | "restorePhrase" => {

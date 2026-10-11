@@ -8,8 +8,14 @@ if (!env.CARGO_HOME && existsSync(`${localTools}/cargo/bin/cargo`)) {
   env.RUSTUP_HOME = `${localTools}/rustup`;
   env.PATH = `${env.CARGO_HOME}/bin:${env.PATH}`;
 }
-if (process.platform === "darwin")
+if (process.platform === "darwin") {
   env.DEVELOPER_DIR = "/Library/Developer/CommandLineTools";
+  if (
+    !env.CC_wasm32_unknown_unknown &&
+    existsSync("/opt/homebrew/opt/llvm/bin/clang")
+  )
+    env.CC_wasm32_unknown_unknown = "/opt/homebrew/opt/llvm/bin/clang";
+}
 for (const [command, args] of [
   [
     "cargo",

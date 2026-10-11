@@ -373,3 +373,13 @@ mod keyfile {
         assert_eq!(decrypt_key(&format!("{}\n", hexs(&secret)), None), Ok(secret));
     }
 }
+
+pub mod btc;
+pub mod channel;
+pub mod ln;
+pub mod swap;
+pub mod tron;
+mod portable_hex {
+ pub fn hex(v: &[u8]) -> String { hex::encode(v) }
+ pub fn unhex(s: &str) -> Result<Vec<u8>, String> { hex::decode(s).map_err(|e|e.to_string()) }
+}

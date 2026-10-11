@@ -25,7 +25,7 @@ fn inputs(tx: &Tx) -> Result<&[requant_consensus::tx::Input]> {
         _ => Err("Use a transfer with 1 to 600 inputs.".into()),
     }
 }
-fn parents(tx: &Tx, v: &Value, owner: Option<Hash>) -> Result<Vec<Tx>> {
+pub(super) fn parents(tx: &Tx, v: &Value, owner: Option<Hash>) -> Result<Vec<Tx>> {
     let mut prev = Vec::new();
     let mut seen = HashSet::new();
     let mut total = 0u64;
@@ -70,7 +70,7 @@ pub fn locks(tx: &Tx) -> Result<Value> {
         "revealsSecret":i.iter().any(|i|matches!(i.unlock,Unlock::HtlcClaim{..}|Unlock::RevocableClaim{..}))}),
     )
 }
-fn review(tx: &Tx, prev: Vec<Tx>) -> Result<Value> {
+pub(super) fn review(tx: &Tx, prev: Vec<Tx>) -> Result<Value> {
     tx.check_shape()
         .map_err(|_| "Invalid transfer amounts or duplicate inputs.")?;
     let u = Unsigned {
@@ -85,7 +85,7 @@ fn review(tx: &Tx, prev: Vec<Tx>) -> Result<Value> {
     r["bytes"] = json!(tx.encode().len());
     Ok(r)
 }
-fn keyring(v: &Value) -> Result<Vec<SigningKey>> {
+pub(super) fn keyring(v: &Value) -> Result<Vec<SigningKey>> {
     let text = field(v, "file")?;
     let j: Value = serde_json::from_str(text).map_err(|_| "Invalid wallet file.")?;
     let pass = Zeroizing::new(field(v, "password")?.to_owned());

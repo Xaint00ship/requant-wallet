@@ -23,7 +23,7 @@ Use a minimum 44px desktop action target and 48dp Android touch target. Keep vis
 | Settings     | Backup, password, auto-lock and node connection  | Backup, password, auto-lock and node connection   |
 | Wallet setup | Create or restore encrypted backup               | Create or restore encrypted backup                |
 
-All targets use the same full wallet interface and pinned portable Requant wallet 0.5.0 library. The wallet selector supports HD wallets, legacy encrypted key wallets and watch-only files. Every target exposes 24-word creation/restoration, multiple addresses, payment batches, max/consolidation and offline payment files. Native file/share and connection settings use platform adapters.
+All targets use the same full wallet interface and pinned portable Requant wallet 0.10.0 library. The wallet selector supports HD wallets, legacy encrypted key wallets and watch-only files. Every target exposes 24-word creation/restoration, multiple addresses, payment batches, max/consolidation and offline payment files. Native file/share and connection settings use platform adapters.
 
 ## Balance and activity
 
@@ -57,8 +57,14 @@ The wallet app needs a purpose-built connection path for reads and signed transa
 
 ## Presentation and evidence
 
-All visible copy is English. Public testnet copy: Testnet coins have no value. No fiat prices, token portfolios, exchange actions, staking, yield, NFTs or unsupported release/audit claims are included in this concept.
+All visible copy is English. Public testnet copy: Testnet coins have no value. No fiat prices, token portfolios, unsupported exchange markets, staking, yield, NFTs or unsupported release/audit claims are included in this concept.
 
 The generated PNGs are design concepts with illustrative data. The source baseline is `danifest751/requant@aad4772`; the visual identity comes from the approved Requant website concept. Prompts and the reused brand SVG are versioned alongside the PNGs. The Signal layout adapts to all five targets, with native file and sharing behavior preserved.
 
-Spending conditions: local 2-of-2, HTLC, delayed revocation and revocable HTLC builders; secret/hash and public-key tools; verified-parent offline payment files, CLI-compatible partial signatures and cosigning. Reviews show activation heights, absolute/relative locks, anyone-can-pay and secret disclosure. Revocable conditions and anyone-can-pay activate at testnet height 4700. Swaps and payment channels remain future applications of these primitives.
+Spending conditions: local 2-of-2, HTLC, delayed revocation and revocable HTLC builders; secret/hash and public-key tools; verified-parent offline payment files, CLI-compatible partial signatures and cosigning. Reviews show activation heights, absolute/relative locks, anyone-can-pay and secret disclosure. Revocable conditions and anyone-can-pay activate at testnet height 4700. Swaps and payment channels use these primitives in the dedicated protocol workspaces below.
+
+## Protocol workspaces — 2026-10-12
+
+Swaps, Channels and Packages follow the approved Signal palette and IBM Plex Sans. Desktop uses the existing sidebar and padded white panels; mobile exposes the same tools through Tools and stacks panels. No new brand direction.
+
+Swap payment details are displayed after encrypted backup export. Network labels stay explicit (Bitcoin Signet, Lightning test payments, TRON Nile, Requant testnet). Show full addresses, exact decimal amounts, funding/refund deadlines and fee caps. Every broadcast requires a visible review. Channel funding requires a verified server-signed refund; payment states show the cumulative amount. Package review shows every transaction and the combined fee. Signed TRON transactions persist before relay and remain visible when submission status is unknown.

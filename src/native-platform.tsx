@@ -40,6 +40,8 @@ export function installNativePlatform() {
         }),
       ),
     rpc: (method, params) => invoke("full_wallet_rpc", { method, params }),
+    protocol: (method, params) =>
+      invoke("full_wallet_protocol", { method, params }),
     lock: () => {
       void invoke("lock_wallet").catch(() => {});
     },

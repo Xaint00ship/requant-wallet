@@ -1,4 +1,5 @@
 import http from "node:http";
+import { protocolRequest, relayProtocol } from "./protocol.mjs";
 export function validateRequest(body) {
   const { method, params } = body || {};
   if (!Array.isArray(params)) throw new Error("Invalid parameters");
@@ -30,6 +31,20 @@ export function validateRequest(body) {
       Number.isInteger(params[1]) &&
       params[1] >= 1 &&
       params[1] <= 200) ||
+    (method === "sendpackage" &&
+      params.length === 1 &&
+      Array.isArray(params[0]) &&
+      params[0].length >= 2 &&
+      params[0].length <= 25 &&
+      params[0].every(
+        (v) =>
+          typeof v === "string" &&
+          v.length <= 200000 &&
+          v.length >= 2 &&
+          v.length % 2 === 0 &&
+          /^[a-f0-9]+$/.test(v),
+      ) &&
+      params[0].reduce((n, v) => n + v.length, 0) <= 400000) ||
     (method === "sendtx" &&
       params.length === 1 &&
       typeof params[0] === "string" &&
@@ -45,6 +60,7 @@ export function createGateway({
   rpcToken,
   fetchNode = fetch,
   now = Date.now,
+  makerUrl = process.env.MAKER_URL,
 } = {}) {
   let active = 0;
   const limits = new Map();
@@ -66,7 +82,10 @@ export function createGateway({
       );
       return;
     }
-    if (req.method !== "POST" || req.url !== "/wallet-api/v1/rpc") {
+    if (
+      req.method !== "POST" ||
+      !["/wallet-api/v1/rpc", "/wallet-api/v1/protocol"].includes(req.url)
+    ) {
       reply(404, "Wallet endpoint not found");
       return;
     }
@@ -79,19 +98,22 @@ export function createGateway({
       const parts = [];
       for await (const part of req) {
         size += part.length;
-        if (size > 256 * 1024) {
+        if (size > 512 * 1024) {
           reply(413, "Request too large");
           return;
         }
         parts.push(part);
       }
-      const request = validateRequest(
-        JSON.parse(Buffer.concat(parts).toString("utf8")),
-      );
+      const external = req.url === "/wallet-api/v1/protocol";
+      const body = JSON.parse(Buffer.concat(parts).toString("utf8"));
+      const request = external ? protocolRequest(body) : validateRequest(body);
+      const sending = external
+        ? request.write
+        : ["sendtx", "sendpackage"].includes(request.method);
       const identity = String(
         req.headers["x-real-ip"] || req.socket.remoteAddress,
       );
-      const key = `${identity}:${request.method === "sendtx" ? "send" : "read"}`;
+      const key = `${identity}:${sending ? "send" : "read"}`;
       const timestamp = now();
       for (const [k, v] of limits) if (v.until <= timestamp) limits.delete(k);
       if (limits.size >= 20000 && !limits.has(key)) {
@@ -101,7 +123,7 @@ export function createGateway({
       const bucket = limits.get(key) || { count: 0, until: timestamp + 60000 };
       limits.set(key, bucket);
       bucket.count++;
-      if (bucket.count > (request.method === "sendtx" ? 10 : 1200)) {
+      if (bucket.count > (sending ? 10 : 1200)) {
         reply(429, "Too many requests. Try again later.");
         return;
       }
@@ -109,12 +131,16 @@ export function createGateway({
         reply(503, "Gateway busy");
         return;
       }
-      if (!rpcUrl || !rpcToken) {
+      if (!external && (!rpcUrl || !rpcToken)) {
         reply(503, "Wallet node unavailable");
         return;
       }
       active++;
       try {
+        if (external) {
+          res.end(await relayProtocol(request, fetchNode, makerUrl));
+          return;
+        }
         if (request.method === "gettxbatch") {
           const ids = [...new Set(request.params[0])];
           const results = new Array(ids.length);
@@ -193,7 +219,12 @@ export function createGateway({
           throw new Error("Invalid node response");
         res.end(raw);
       } catch {
-        reply(503, "Wallet node unavailable");
+        reply(
+          503,
+          external
+            ? "Swap service unavailable. Refresh and try again."
+            : "Wallet node unavailable",
+        );
       } finally {
         active--;
       }

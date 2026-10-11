@@ -1,12 +1,13 @@
 {
   "repository": "https://github.com/requant-network/requant",
-  "commit": "ef789d4e71197e7e32166611aac57ca1578769cd",
+  "commit": "845d0e9f30122fc742799a7bd8855879cff02fd1",
   "path": "crates/wallet",
   "adaptations": [
     "Exclude socket-based backend; browser networking uses the constrained wallet gateway.",
     "Cargo manifest contains only portable library dependencies.",
     "CLI address-count operations are exposed by the shared local core, bounded to 100,000 receive addresses.",
-    "Condition module uses portable hex encoding instead of node RPC helpers."
+    "Condition module uses portable hex encoding instead of node RPC helpers.",
+    "Pure BTC, Lightning, TRON, swap and channel helpers retain upstream tests; socket/HTTP maker clients are excluded. Networking is performed through constrained platform gateways."
   ],
-  "walletVersion": "0.5.0"
+  "walletVersion": "0.10.0"
 }

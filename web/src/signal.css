@@ -1508,3 +1508,152 @@ td > a {
   width: 18px;
   height: 18px;
 }
+
+/* Shared protocol workspaces: desktop, mobile, native and full extension. */
+.protocol-workspace {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.protocol-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.protocol-intro h2 {
+  font-size: 28px;
+  margin: 12px 0;
+}
+.protocol-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 24px;
+}
+.protocol-columns > .panel {
+  min-width: 0;
+}
+.protocol-workspace .field {
+  margin: 16px 0;
+}
+.protocol-workspace h3 {
+  margin: 24px 0 16px;
+}
+.protocol-details {
+  margin: 20px 0;
+  display: grid;
+  gap: 12px;
+}
+.protocol-details > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.65fr) minmax(0, 1.35fr);
+  gap: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line, #e4e4df);
+}
+.protocol-details dt {
+  color: #717786;
+  font-size: 13px;
+}
+.protocol-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+.protocol-list-row {
+  width: 100%;
+  padding: 18px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #e4e4df;
+  background: #fff;
+  border-radius: 8px;
+  margin: 12px 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.protocol-list-row.selected {
+  border-color: #ff5426;
+  background: #fff4ef;
+}
+.protocol-list-row small {
+  display: block;
+  margin-top: 8px;
+  color: #717786;
+}
+.protocol-review,
+.protocol-payment,
+.protocol-refund {
+  padding: 24px;
+  border: 1px solid #e4e4df;
+  border-radius: 8px;
+  margin: 24px 0;
+  background: #faf9f5;
+}
+.protocol-warning {
+  padding: 16px 20px;
+  background: #fff1e8;
+  color: #9c381f;
+  border: 1px solid #ffd9c8;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 20px 0;
+}
+.protocol-workspace textarea {
+  font-family: inherit;
+  resize: vertical;
+  min-width: 0;
+  width: 100%;
+}
+.protocol-workspace .action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+.protocol-workspace button {
+  min-height: 44px;
+}
+.protocol-workspace button:disabled {
+  cursor: default;
+}
+.protocol-workspace .eyebrow {
+  color: #717786;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+.sidebar nav {
+  overflow-y: auto;
+  min-height: 0;
+}
+@media (max-width: 800px) {
+  .protocol-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .protocol-intro h2 {
+    font-size: 24px;
+  }
+  .protocol-details > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .protocol-review,
+  .protocol-payment,
+  .protocol-refund {
+    padding: 16px;
+  }
+  .protocol-workspace button {
+    min-height: 48px;
+  }
+  .protocol-workspace .action-row > .button {
+    flex: 1 1 180px;
+  }
+  .protocol-workspace {
+    gap: 16px;
+  }
+}

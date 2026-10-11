@@ -8,6 +8,6 @@
 - Sign transactions on the user's device. The wallet password is local; it is unrelated to website-administrator or server credentials.
 - Derive displayed balances and states from verified wallet data. Preserve unsigned integer amounts and eight-decimal RQT precision. Validate the complete address for the selected network before signing.
 - The first milestone is testnet. Keep its badge visible, and review recipient, amount, fee and total before broadcasting a transfer.
-- Match restore and backup UI to the actual key format. The current reference is wallet 0.5.0: encrypted HD wallets with 24-word recovery, watch-only files and legacy encrypted keys. Preserve compatibility with all three formats.
+- Match restore and backup UI to the actual key format. The current reference is upstream wallet 0.10.0: encrypted HD wallets with 24-word recovery, watch-only files and legacy encrypted keys. Preserve compatibility with all three formats.
 - Do not claim audits, useful AI work, ASIC resistance, financial returns or an exchange price. Use source evidence for network claims.
 - Verify wallet-state and signing changes with meaningful tests. Never use real user keys or perform a real transfer as a UI test.

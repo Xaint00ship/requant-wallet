@@ -378,7 +378,8 @@ pub fn run() {
                     }
                 });
             let store = Store::open(directory.clone()).map_err(std::io::Error::other)?;
-            let full = full_wallet::FullWalletStore::open(directory).map_err(std::io::Error::other)?;
+            let full =
+                full_wallet::FullWalletStore::open(directory).map_err(std::io::Error::other)?;
             app.manage(Mutex::new(full));
             app.manage(Mutex::new(Runtime {
                 store,
@@ -391,6 +392,7 @@ pub fn run() {
             full_wallet::full_state_save,
             full_wallet::portable_wallet,
             full_wallet::full_wallet_rpc,
+            full_wallet::full_wallet_protocol,
             full_wallet::share_full_address,
             list_wallets,
             create_wallet,
@@ -423,28 +425,42 @@ mod tests;
 
 #[tauri::command]
 fn app_update_info(app: tauri::AppHandle) -> Value {
-    let platform = if cfg!(target_os = "android") { "android" }
-        else if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() { "linux-package" }
-        else { "desktop" };
+    let platform = if cfg!(target_os = "android") {
+        "android"
+    } else if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() {
+        "linux-package"
+    } else {
+        "desktop"
+    };
     json!({"version": app.package_info().version.to_string(), "platform": platform})
 }
 
 #[tauri::command]
 async fn check_app_update(app: tauri::AppHandle) -> Result<Value> {
     tauri::async_runtime::spawn_blocking(move || app.wallet_share().check_update())
-        .await.map_err(|_| "Update check failed.".to_string())?
+        .await
+        .map_err(|_| "Update check failed.".to_string())?
 }
 
 #[tauri::command]
 async fn install_app_update(app: tauri::AppHandle, state: RuntimeState<'_>) -> Result<Value> {
-    { let mut rt = access(&state)?; rt.store.lock_all(); rt.plans.clear(); }
+    {
+        let mut rt = access(&state)?;
+        rt.store.lock_all();
+        rt.plans.clear();
+    }
     tauri::async_runtime::spawn_blocking(move || app.wallet_share().install_update())
-        .await.map_err(|_| "Cannot open the update installer.".to_string())?
+        .await
+        .map_err(|_| "Cannot open the update installer.".to_string())?
 }
 
 #[tauri::command]
 fn open_wallet_downloads(app: tauri::AppHandle) -> Result<()> {
     use tauri_plugin_opener::OpenerExt;
-    app.opener().open_url("https://requant.network/docs/wallet#download-wallet", None::<&str>)
+    app.opener()
+        .open_url(
+            "https://requant.network/docs/wallet#download-wallet",
+            None::<&str>,
+        )
         .map_err(|_| "Cannot open wallet downloads.".into())
 }
