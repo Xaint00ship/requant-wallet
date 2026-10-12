@@ -25,7 +25,9 @@ Uploads are bounded (32 MB per file, 128 MB total including in-flight reservatio
 
 ## Build and deploy
 
-`npm run build:web` builds `dist-web/index.html`, `telegram.html`, `export.html`, shared assets, the official vendored Telegram SDK and offline/update manifest. SDK source: [Telegram Web Apps SDK](https://telegram.org/js/telegram-web-app.js?64); SHA256 at initial import: `124bdff7ba3fe86c8ba5143467afec21e020405e74abdb92cfdda6c0ee3b5908`.
+`npm run build:web` builds `dist-web/index.html`, `telegram.html`, `export.html`, shared assets, the verified Telegram SDK and offline/update manifest. Both `npm run build:web` and `npm run dev:web` first download the SDK from [Telegram Web Apps SDK](https://telegram.org/js/telegram-web-app.js?64) when a verified local copy is missing. The downloaded `public/telegram-web-app.js` is ignored by Git. SHA-256: `124bdff7ba3fe86c8ba5143467afec21e020405e74abdb92cfdda6c0ee3b5908`.
+
+A verified copy is reused without network access. The first preparation needs access to `telegram.org`; an HTTP error, timeout or changed checksum stops preparation. Review the upstream file before updating the pin in `scripts/fetch-telegram-sdk.mjs`. To prepare the SDK separately, run `node scripts/fetch-telegram-sdk.mjs`.
 
 Merge `compose.telegram-wallet.yml` with the existing Requant Compose files. Its source is `/opt/requant/wallet/telegram`; mount `/opt/requant/deploy/secrets/telegram-bot-token` readable only by container UID 1000. `node configure.mjs` sets bot commands/descriptions/menu through Bot API and refuses an existing webhook. `server.mjs` runs a private long-poll command bot plus the bounded export API. Reverse proxy `/telegram-wallet-api/*` to `telegram-wallet:3313`.
 
