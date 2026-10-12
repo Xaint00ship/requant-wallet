@@ -1,10 +1,8 @@
-// Fetches the official Telegram Web Apps SDK into public/ for the Mini App build and checks it against
-// a pinned SHA-256. The SDK is Telegram's code with no stated license, so it is not committed; the
-// build serves this verified copy from our own origin. A changed upstream file stops the build: review
-// it, then update SHA256 below.
+// Fetch the Telegram Web Apps SDK for build/development without tracking a copy in Git.
+// Verify the pinned SHA-256 before writing it; review upstream changes before updating the pin.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const URL = "https://telegram.org/js/telegram-web-app.js?64";
@@ -19,23 +17,37 @@ const out = join(
 
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-if (existsSync(out) && sha(readFileSync(out)) === SHA256) {
-  console.log("Telegram Web Apps SDK: verified copy present.");
-} else {
-  const response = await fetch(URL);
-  if (!response.ok)
-    throw new Error(
-      `Telegram Web Apps SDK: HTTP ${response.status} from ${URL}`,
-    );
-  const bytes = Buffer.from(await response.arrayBuffer());
-  const got = sha(bytes);
-  if (got !== SHA256) {
-    throw new Error(
-      `Telegram Web Apps SDK changed upstream: SHA-256 ${got}, expected ${SHA256}. Review it before updating the pin.`,
+export async function ensureTelegramSdk({
+  outPath = out,
+  fetchSdk = globalThis.fetch,
+} = {}) {
+  if (existsSync(outPath) && sha(readFileSync(outPath)) === SHA256) {
+    console.log("Telegram Web Apps SDK: verified copy present.");
+  } else {
+    const response = await fetchSdk(URL, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok)
+      throw new Error(
+        `Telegram Web Apps SDK: HTTP ${response.status} from ${URL}`,
+      );
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const got = sha(bytes);
+    if (got !== SHA256) {
+      throw new Error(
+        `Telegram Web Apps SDK changed upstream: SHA-256 ${got}, expected ${SHA256}. Review it before updating the pin.`,
+      );
+    }
+    writeFileSync(outPath, bytes);
+    console.log(
+      `Telegram Web Apps SDK: fetched and verified (${bytes.length} bytes).`,
     );
   }
-  writeFileSync(out, bytes);
-  console.log(
-    `Telegram Web Apps SDK: fetched and verified (${bytes.length} bytes).`,
-  );
+}
+
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  await ensureTelegramSdk();
 }
