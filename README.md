@@ -2,9 +2,9 @@
 
 Private Requant testnet application for Windows, macOS, Linux and Android. English interface with the approved light Requant identity. iOS is outside this milestone.
 
-## Wallet 0.4.0
+## Wallet 0.5.0
 
-One interface and Requant wallet 0.5.0 portable core across web, Windows, macOS, Linux, Android and the browser extension's full wallet workspace.
+One interface and Requant wallet 0.5.0 portable core across web, Windows, macOS, Linux, Android, the browser extension's full wallet workspace and the Telegram Mini App (@requant_wallet_bot).
 
 - Create and restore a 24-word HD wallet, encrypted backups, watch-only imports and legacy encrypted/plain key imports (plain keys are encrypted before storage).
 - Receive/change addresses, recovery scanning, address counts from 1 to 100,000, paged address lists and deposit-list exports.
@@ -13,7 +13,7 @@ One interface and Requant wallet 0.5.0 portable core across web, Windows, macOS,
 - CLI-compatible prepare/sign/broadcast files for offline operation, watch-only preparation and durable signed transaction outbox.
 - Local password changes, native file picking/saving, clipboard, Android sharing, native own-node configuration and signed update delivery.
 
-Existing app key wallets are migrated atomically with their IDs, names, addresses, backup flags and signed outbox preserved. Only encrypted wallet files and public metadata are persisted. Mainnet, hardware wallets, camera scanning, swaps, channels and fiat integrations remain outside implemented upstream wallet functionality.
+Existing app key wallets are migrated atomically with their IDs, names, addresses, backup flags and signed outbox preserved. Only encrypted wallet files and public metadata are persisted. Mainnet, hardware wallets, camera scanning and fiat integrations remain outside implemented upstream wallet functionality.
 
 Web uses IndexedDB with revision checks, native apps use an atomic application-data file, and extension storage is restricted to trusted extension pages. Competing writers must reload instead of silently overwriting another window. Updates are described in [UPDATES.md](docs/UPDATES.md).
 
@@ -81,4 +81,4 @@ Consensus/address/transaction rules are pinned to Requant `ef789d4`, with the po
 
 The design images contain illustrative data. The application loads actual node responses and shows empty/offline states rather than fabricated funds.
 
-Spending conditions: local 2-of-2, HTLC, delayed revocation and revocable HTLC builders; secret/hash and public-key tools; verified-parent offline payment files, CLI-compatible partial signatures and cosigning. Reviews show activation heights, absolute/relative locks, anyone-can-pay and secret disclosure. Revocable conditions and anyone-can-pay activate at testnet height 4700. Swaps and payment channels remain future applications of these primitives.
+Spending conditions: local 2-of-2, HTLC, delayed revocation and revocable HTLC builders; secret/hash and public-key tools; verified-parent offline payment files, CLI-compatible partial signatures and cosigning. Reviews show activation heights, absolute/relative locks, anyone-can-pay and secret disclosure. Revocable conditions and anyone-can-pay activate at testnet height 4700. Testnet swaps (BTC on Signet, Lightning, USDT on TRON Nile), one-way payment channels and package relay are built on these primitives.
