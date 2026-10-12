@@ -82,3 +82,7 @@ Consensus/address/transaction rules are pinned to Requant `ef789d4`, with the po
 The design images contain illustrative data. The application loads actual node responses and shows empty/offline states rather than fabricated funds.
 
 Spending conditions: local 2-of-2, HTLC, delayed revocation and revocable HTLC builders; secret/hash and public-key tools; verified-parent offline payment files, CLI-compatible partial signatures and cosigning. Reviews show activation heights, absolute/relative locks, anyone-can-pay and secret disclosure. Revocable conditions and anyone-can-pay activate at testnet height 4700. Testnet swaps (BTC on Signet, Lightning, USDT on TRON Nile), one-way payment channels and package relay are built on these primitives.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). The vendored Requant source in `vendor/` is Apache-2.0 as well; IBM Plex Sans is under the SIL Open Font License 1.1.
