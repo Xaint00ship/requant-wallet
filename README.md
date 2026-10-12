@@ -1,6 +1,6 @@
 # Requant Wallet
 
-Private Requant testnet application for Windows, macOS, Linux and Android. English interface with the approved light Requant identity. iOS is outside this milestone.
+Requant testnet application for Windows, macOS, Linux and Android. English interface with the approved light Requant identity. iOS is outside this milestone.
 
 ## Wallet 0.5.0
 
@@ -51,9 +51,9 @@ npm run tauri -- android build --ci --apk --target aarch64
 
 Android requires Java 21, SDK 36, NDK 28.2, aarch64-linux-android and the signing environment described below. The preparation script applies release signing, Requant icons, disables OS cloud backup of wallet data and prohibits cleartext network traffic.
 
-## Private builds and signing
+## Builds and signing
 
-`.github/workflows/build.yml` checks the wallet core/gateway and builds Windows x64 NSIS, universal macOS DMG, Linux x64 AppImage/Debian and Android ARM64 APK. Artifacts remain in this private repository for 30 days. A successful installer build does not establish device/runtime testing on that platform.
+`.github/workflows/build.yml` checks the wallet core/gateway and builds Windows x64 NSIS, universal macOS DMG, Linux x64 AppImage/Debian and Android ARM64 APK. Build artifacts are retained for 30 days; access follows the repository visibility. A successful installer build does not establish device/runtime testing on that platform.
 
 Android signing uses repository secrets `ANDROID_KEY_BASE64` and `ANDROID_KEY_PASSWORD`; the fixed alias is `requant-wallet`. Keep an offline copy of this key and password outside Git. Android updates must use the same signing key.
 
