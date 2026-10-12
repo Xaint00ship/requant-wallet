@@ -1,0 +1,76 @@
+.telegram-wallet body {
+  padding: var(--wallet-safe-top, 0px) var(--wallet-safe-right, 0px) 0
+    var(--wallet-safe-left, 0px);
+}
+.telegram-wallet input,
+.telegram-wallet select,
+.telegram-wallet textarea {
+  font-size: 16px;
+}
+.telegram-wallet .app-shell {
+  min-height: calc(100dvh - var(--wallet-safe-top, 0px));
+}
+.telegram-start {
+  max-width: 640px;
+  margin: 64px auto;
+  padding: 40px;
+}
+.telegram-start img {
+  margin-bottom: 24px;
+}
+.telegram-start .eyebrow {
+  margin-bottom: 16px;
+}
+.telegram-start .action-row,
+.telegram-file .action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0;
+}
+.telegram-start .muted,
+.telegram-file .muted {
+  color: #717786;
+  font-size: 13px;
+}
+.telegram-file {
+  width: min(520px, calc(100vw - 32px));
+  margin: 16px;
+  padding: 32px;
+}
+@media (max-width: 700px) {
+  .telegram-wallet .mobile-navigation {
+    padding-bottom: calc(
+      8px + max(env(safe-area-inset-bottom), var(--wallet-safe-bottom, 0px))
+    );
+    padding-left: max(8px, var(--wallet-safe-left, 0px));
+    padding-right: max(8px, var(--wallet-safe-right, 0px));
+  }
+  .telegram-wallet .main {
+    padding-bottom: calc(
+      100px + max(env(safe-area-inset-bottom), var(--wallet-safe-bottom, 0px))
+    );
+  }
+  .telegram-wallet .modal-backdrop {
+    padding-top: var(--wallet-safe-top, 0px);
+    padding-bottom: var(--wallet-safe-bottom, 0px);
+  }
+  .telegram-start {
+    margin: 24px 16px;
+    padding: 24px;
+  }
+  .telegram-file {
+    padding: 24px;
+  }
+  .telegram-start .button,
+  .telegram-file .button {
+    min-height: 48px;
+  }
+}
+.telegram-copy {
+  position: fixed;
+  opacity: 0;
+  inset: 0;
+  width: 1px;
+  height: 1px;
+}

@@ -1,0 +1,33 @@
+# Insert inside the existing requant.network site block, before its general wallet/site handlers.
+  # Telegram Mini App uses the shared wallet; permit Telegram Web's frame only here.
+  @telegram_wallet_entry path /wallet/telegram.html /telegram-wallet /telegram-wallet/
+  handle @telegram_wallet_entry {
+    root * /srv/wallet
+    rewrite * /telegram.html
+    header {
+      X-Content-Type-Options nosniff
+      Referrer-Policy no-referrer
+      Cache-Control no-cache
+      -X-Frame-Options
+      Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://t.me"
+      -Server
+    }
+    file_server
+  }
+  handle_path /telegram-wallet/* {
+    root * /srv/wallet
+    @telegram_sw path /sw.js
+    rewrite @telegram_sw /sw-telegram.js
+    header {
+      X-Content-Type-Options nosniff
+      Referrer-Policy no-referrer
+      Cache-Control no-cache
+      X-Frame-Options DENY
+      Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+      -Server
+    }
+    file_server
+  }
+  handle /telegram-wallet-api/* {
+    reverse_proxy telegram-wallet:3313
+  }

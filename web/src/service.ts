@@ -64,6 +64,7 @@ export type Plan = {
 };
 const STORAGE = "requant.web.v1";
 let worker: Worker | undefined;
+let coreLoad: AbortController | undefined;
 let serial = 0;
 let generation = 0;
 let activeRpc = 0;
@@ -85,6 +86,8 @@ const pending = new Map<
 export function lock() {
   generation++;
   platform()?.lock();
+  coreLoad?.abort();
+  coreLoad = undefined;
   worker?.terminate();
   worker = undefined;
   for (const p of pending.values()) p.reject(new Error("Wallet locked."));
@@ -108,6 +111,40 @@ export async function core<T = any>(
       type: "module",
     });
     worker.onmessage = ({ data }) => {
+      if (data.type === "LOAD_CORE") {
+        const current = worker!;
+        const controller = new AbortController();
+        coreLoad = controller;
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        void (async () => {
+          try {
+            const url = new URL(data.url);
+            if (
+              url.origin !== location.origin ||
+              !url.pathname.endsWith(".wasm") ||
+              !url.pathname.startsWith("/wallet/")
+            )
+              throw new Error();
+            const response = await fetch(url, {
+              credentials: "omit",
+              redirect: "error",
+              signal: controller.signal,
+            });
+            if (!response.ok) throw new Error();
+            const bytes = await response.arrayBuffer();
+            if (bytes.byteLength > 4 * 1024 * 1024) throw new Error();
+            if (worker === current)
+              current.postMessage({ type: "CORE_BYTES", bytes }, [bytes]);
+          } catch {
+            if (worker === current)
+              current.postMessage({ type: "CORE_FAILED" });
+          } finally {
+            clearTimeout(timeout);
+            if (coreLoad === controller) coreLoad = undefined;
+          }
+        })();
+        return;
+      }
       const p = pending.get(data.id);
       if (!p) return;
       pending.delete(data.id);

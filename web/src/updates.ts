@@ -30,7 +30,11 @@ export function useWebUpdates(
     }, 5000);
   }
   useEffect(() => {
-    if (platform() || !import.meta.env.PROD || !("serviceWorker" in navigator))
+    if (
+      (platform() && platform()?.kind !== "telegram") ||
+      !import.meta.env.PROD ||
+      !("serviceWorker" in navigator)
+    )
       return;
     let disposed = false;
     const controlled = !!navigator.serviceWorker.controller;
@@ -59,8 +63,10 @@ export function useWebUpdates(
     };
     async function register() {
       try {
-        const reg = await navigator.serviceWorker.register("/wallet/sw.js", {
-          scope: "/wallet/",
+        const scope =
+          platform()?.kind === "telegram" ? "/telegram-wallet/" : "/wallet/";
+        const reg = await navigator.serviceWorker.register(`${scope}sw.js`, {
+          scope,
           updateViaCache: "none",
         });
         if (disposed) return;

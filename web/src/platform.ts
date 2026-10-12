@@ -7,7 +7,7 @@ export type UpdateProps = {
   details: boolean;
 };
 export type Platform = {
-  kind: "native" | "extension";
+  kind: "native" | "extension" | "telegram";
   load: () => Promise<{ revision: number; data: Record<string, string> }>;
   save: (revision: number, key: string, value: string) => Promise<number>;
   core?: (op: string, args: Record<string, unknown>) => Promise<any>;
@@ -22,6 +22,12 @@ export type Platform = {
   updates: (props: UpdateProps) => ReactNode;
   settings?: () => Promise<{ endpoint: string; autoLockMinutes: number }>;
   configure?: (endpoint: string) => Promise<void>;
+  navigation?: (state: {
+    back: () => void;
+    canGoBack: boolean;
+    blocked: boolean;
+    lock: () => void;
+  }) => () => void;
 };
 declare global {
   interface Window {

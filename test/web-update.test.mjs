@@ -7,7 +7,7 @@ const source = await readFile(
   new URL("../web/service-worker.js", import.meta.url),
   "utf8",
 );
-function worker(clientSafety = []) {
+function worker(clientSafety = [], telegram = false) {
   const listeners = {};
   let activated = 0,
     deferred = 0;
@@ -20,7 +20,11 @@ function worker(clientSafety = []) {
   }));
   const self = {
     location: { origin: "https://requant.network" },
-    registration: { scope: "https://requant.network/wallet/" },
+    registration: {
+      scope: telegram
+        ? "https://requant.network/telegram-wallet/"
+        : "https://requant.network/wallet/",
+    },
     clients: { matchAll: async () => clients, claim: async () => {} },
     skipWaiting: async () => {
       activated++;
@@ -31,8 +35,15 @@ function worker(clientSafety = []) {
   };
   vm.runInNewContext(source, {
     self,
-    CACHE: "requant-wallet-new",
-    FILES: ["/wallet/index.html", "/wallet/assets/app.js"],
+    CACHE: telegram ? "requant-telegram-wallet-new" : "requant-wallet-new",
+    FILES: [
+      "/wallet/index.html",
+      "/wallet/telegram.html",
+      "/wallet/export.html",
+      "/telegram-wallet/",
+      "/telegram-wallet/export.html",
+      "/wallet/assets/app.js",
+    ],
     URL,
     MessageChannel,
     setTimeout,
@@ -97,8 +108,20 @@ test("offline cache serves the matching public shell and never intercepts RPC or
     await request("https://requant.network/wallet/", "navigate"),
     "cached-public-file",
   );
+  assert.equal(
+    await request("https://requant.network/wallet/telegram.html", "navigate"),
+    "cached-public-file",
+  );
+  assert.equal(
+    await request(
+      "https://requant.network/wallet/export.html?id=opaque",
+      "navigate",
+    ),
+    "cached-public-file",
+  );
   for (const path of [
     "/wallet-api/v1/rpc",
+    "/telegram-wallet-api/exports/opaque",
     "/wallet/downloads/wallet/private.key",
     "/downloads/wallet/v0.3.0-testnet/app.exe",
     "/wallet/sw.js",
@@ -108,4 +131,20 @@ test("offline cache serves the matching public shell and never intercepts RPC or
     request("https://requant.network/wallet/assets/app.js", "cors", "POST"),
     null,
   );
+});
+test("Telegram has its own offline entry and scope; export links keep the export page", async () => {
+  const w = worker([], true);
+  for (const url of [
+    "https://requant.network/telegram-wallet/",
+    "https://requant.network/telegram-wallet/export.html?id=opaque",
+  ]) {
+    let response;
+    w.listeners.fetch({
+      request: { url, method: "GET", mode: "navigate" },
+      respondWith: (p) => {
+        response = p;
+      },
+    });
+    assert.equal(await response, "cached-public-file");
+  }
 });

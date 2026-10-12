@@ -624,6 +624,30 @@ export default function App() {
     setError("");
     setResult("");
   };
+  useEffect(
+    () =>
+      platform()?.navigation?.({
+        canGoBack:
+          view !== "wallet" || !!modal || toolsOpen || (!!setup && !!current),
+        blocked: updateBlocked,
+        lock: clear,
+        back: () => {
+          if (busy || phrase) {
+            setNotice(
+              "Finish the current action and save your backup before going back.",
+            );
+            return;
+          }
+          if (modal) setModal(null);
+          else if (toolsOpen) setToolsOpen(false);
+          else {
+            setSetup(null);
+            goto("wallet");
+          }
+        },
+      }),
+    [view, modal, toolsOpen, setup, current?.id, updateBlocked, busy, phrase],
+  );
   const issued = current?.meta.addresses.filter((a) => a.issued) || [];
   const fileInput = (
     label: string,
@@ -728,21 +752,25 @@ export default function App() {
       <aside className="sidebar">
         <a className="brand" href="https://requant.network/">
           <img
-            src={platform() ? "./requant-mark.svg" : "/wallet/requant-mark.svg"}
+            src={
+              platform()?.kind === "telegram"
+                ? "/wallet/requant-mark.svg"
+                : platform()
+                  ? "./requant-mark.svg"
+                  : "/wallet/requant-mark.svg"
+            }
             alt="Requant"
           />
           <span>
             <strong>REQUANT</strong>
             <small>
-              {platform()?.kind === "extension"
-                ? "BROWSER WALLET"
-                : platform()
-                  ? "WALLET"
-                  : platform()?.kind === "extension"
-                    ? "BROWSER WALLET"
-                    : platform()
-                      ? "WALLET"
-                      : "WEB WALLET"}
+              {platform()?.kind === "telegram"
+                ? "TELEGRAM WALLET"
+                : platform()?.kind === "extension"
+                  ? "BROWSER WALLET"
+                  : platform()
+                    ? "WALLET"
+                    : "WEB WALLET"}
             </small>
           </span>
         </a>
@@ -849,9 +877,11 @@ export default function App() {
                   ? "WATCH-ONLY WALLET"
                   : platform()?.kind === "extension"
                     ? "BROWSER WALLET"
-                    : platform()
-                      ? "WALLET"
-                      : "WEB WALLET"}
+                    : platform()?.kind === "telegram"
+                      ? "TELEGRAM WALLET"
+                      : platform()
+                        ? "WALLET"
+                        : "WEB WALLET"}
             </div>
             <h1>
               {setup

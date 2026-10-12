@@ -1,4 +1,7 @@
 // CACHE and FILES are injected by package-web.mjs. Only public application assets are cached.
+const telegram =
+  new URL(self.registration.scope).pathname === "/telegram-wallet/";
+const cachePrefix = telegram ? "requant-telegram-wallet-" : "requant-wallet-";
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)));
 });
@@ -38,7 +41,7 @@ self.addEventListener("activate", (event) => {
     (async () => {
       // Retain one previous bundle for tabs finishing their controller-change reload.
       const keys = (await caches.keys()).filter((k) =>
-        k.startsWith("requant-wallet-"),
+        k.startsWith(cachePrefix),
       );
       const keep = new Set([
         CACHE,
@@ -54,11 +57,20 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   const key =
-    event.request.mode === "navigate" ? "/wallet/index.html" : url.pathname;
+    event.request.mode === "navigate"
+      ? telegram
+        ? url.pathname === "/telegram-wallet/export.html"
+          ? url.pathname
+          : "/telegram-wallet/"
+        : ["/wallet/telegram.html", "/wallet/export.html"].includes(
+              url.pathname,
+            )
+          ? url.pathname
+          : "/wallet/index.html"
+      : url.pathname;
   if (
     event.request.method !== "GET" ||
     url.origin !== self.location.origin ||
-    !url.pathname.startsWith("/wallet/") ||
     !FILES.includes(key)
   )
     return;

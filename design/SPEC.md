@@ -1,6 +1,6 @@
 # Requant Wallet / Signal
 
-Status: approved and implemented. Date: 2026-10-10. Targets: Web, Windows, macOS, Linux and Android. The selected reference and typography decision are recorded in `signal-system.json`.
+Status: approved and implemented. Date: 2026-10-10. Targets: Web, Windows, macOS, Linux, Android, browser extension and Telegram Mini App. The selected reference and typography decision are recorded in `signal-system.json`.
 
 ## Visual identity
 
