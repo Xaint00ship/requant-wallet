@@ -1,0 +1,11 @@
+Requant Wallet
+Copyright 2026 Ushakov Artemy (Xaint00ship) and danifest751
+
+This product includes software from Requant (https://github.com/requant-network/requant), Apache-2.0,
+copied under vendor/; see vendor/LICENSE, vendor/NOTICE and vendor/PROVENANCE.md.
+
+IBM Plex Sans (public/fonts/), Copyright 2017 IBM Corp., is licensed under the SIL Open Font License 1.1;
+see public/fonts/LICENSE.txt.
+
+Third-party npm and Cargo dependencies keep their own licenses, listed in package-lock.json and
+Cargo.lock.
