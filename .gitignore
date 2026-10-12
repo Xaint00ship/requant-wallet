@@ -21,3 +21,5 @@ src-tauri/gen/
 
 pkg-browser/
 dist-web/
+# Telegram Web Apps SDK: fetched and verified at build time (scripts/fetch-telegram-sdk.mjs)
+public/telegram-web-app.js
